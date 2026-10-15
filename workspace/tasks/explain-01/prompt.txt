@@ -1,0 +1,17 @@
+Read src/app/services/room.service.ts and
+src/app/room-availability/room-availability.component.ts (and its
+.html template).
+
+Then explain, for a developer who has just joined the team:
+
+1. What RoomService is responsible for versus what RoomAvailabilityComponent
+   is responsible for, and how they talk to each other.
+2. What happens, step by step, from the moment the page loads to the free
+   time slots appearing on screen — including what the backend actually
+   sends back and how this component turns that into what the user sees.
+3. Where in this frontend code you would need to be careful about the
+   backend's "half-open interval" booking rule, and why getting that wrong
+   here (even without touching the backend) could show the user a wrong
+   answer.
+
+Do not change any files.

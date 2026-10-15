@@ -1,0 +1,10 @@
+Edits done, but I couldn't run typecheck or tests. Both commands were blocked pending approval.
+
+In `src/services/bookingService.ts`:
+- Added one helper, `hasOverlap(bookings, range)`. It wraps `overlaps` from `domain/booking.ts`, the half-open rule from DOMAIN.md.
+- `createBooking` now calls `hasOverlap(sameDay, range)`.
+- The `checkAvailability` fast path now calls `hasOverlap(bookings, dayWindow)`. I also removed the "copied from createBooking" comment.
+
+Behaviour is unchanged. The comparison is still `overlaps`, so back-to-back bookings stay legal. `findBookingsForDay` still filters to `CONFIRMED`, so cancelled bookings are still ignored.
+
+Run `npx tsc --noEmit` and `npm test` to confirm.

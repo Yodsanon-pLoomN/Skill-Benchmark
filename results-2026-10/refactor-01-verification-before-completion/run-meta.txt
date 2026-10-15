@@ -1,0 +1,9 @@
+started_at=2026-10-11T15:02:35Z
+model=claude-sonnet-5-5
+claude_cli=2.1.296 (Claude Code)
+task_id=refactor-01
+skill_name=verification-before-completion
+skill_type=file
+skill_arg=<project>/workspace/skills/verification-before-completion
+base_tag=refactor-01-base
+base_tag_commit=d3053790285a557ec6fdce2b3c2592d3bafc159c

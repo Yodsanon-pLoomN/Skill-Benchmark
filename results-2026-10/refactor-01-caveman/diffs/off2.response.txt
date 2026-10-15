@@ -1,0 +1,13 @@
+I've made the refactor, but I haven't verified it. The test and typecheck commands were blocked waiting for permission approval, so neither has run.
+
+I'm trying `npx tsc --noEmit` on its own next.
+
+I refactored the overlap scan into one shared helper, but I couldn't run the typecheck or tests. Every `tsc` and `npm test` call was blocked pending permission approval, and this session can't grant it.
+
+In `src/services/bookingService.ts` I added a private helper, `overlapsAny(bookings, range)`, which wraps `bookings.some(b => overlaps(b, range))`. Both places now call it:
+- **`createBooking`:** it calls the helper against that day's bookings and throws `SlotUnavailableError` on a conflict, as before.
+- **`checkAvailability`:** the fast-path check calls the same helper against the full-day window. I also removed the comment saying the logic was copied.
+
+Behaviour should be identical. The helper uses the same `overlaps` function (the half-open check from DOMAIN.md), and the same `findBookingsForDay` query still supplies the bookings. That query filters to `CONFIRMED` only, so cancelled bookings are still ignored. I didn't touch the free-interval sweep or any other code.
+
+Please run `npx tsc --noEmit` and `npm test` yourself, or approve those commands and I'll run them.

@@ -1,0 +1,27 @@
+I'll start by looking at the project structure.
+
+Building the project now to check the new endpoint compiles.
+
+I couldn't verify the endpoint. Every `dotnet build` attempt was blocked pending approval, which this session can't give, so nothing has been compiled or run.
+
+I wrote `PATCH /bookings/{id}/extend` as three changes:
+- **`Services/BookingExtensionService.cs` (new):** holds the four rules, checked in this order.
+  - A booking that isn't CONFIRMED is rejected.
+  - `newEndsAt` must be after the current `EndsAt`.
+  - The total duration from the original `StartsAt` can't exceed 8 hours.
+  - The new range can't overlap another CONFIRMED booking in the same room. The check is `StartsAt < o.EndsAt && newEnd > o.StartsAt`, so touching ranges don't overlap.
+  - On success it saves the new `EndsAt` and returns the booking.
+- **`Controllers/BookingsController.cs` (new):** reads `{ "newEndsAt": ... }` and maps each outcome to a response.
+  - A missing `newEndsAt`, a `newEndsAt` not after the current end, or a total over 8 hours returns 400.
+  - A cancelled booking or an overlap returns 409.
+  - An unknown booking id returns 404.
+  - Success returns 200 with the updated booking.
+- **`Program.cs`:** registers `BookingExtensionService`.
+
+Timestamps are converted to UTC before comparing. I do the overlap comparison in memory rather than in SQL, because SQLite stores dates as text.
+
+What's left to check:
+1. Run `dotnet build` and confirm it exits 0.
+2. Start the app and send one request per rule. The seed data has no two bookings in the same room close together, so the overlap and touching-boundary cases need an extra booking inserted first.
+
+Approve `dotnet build` and `dotnet run` and I'll do both. You can also run them yourself and send me the output.

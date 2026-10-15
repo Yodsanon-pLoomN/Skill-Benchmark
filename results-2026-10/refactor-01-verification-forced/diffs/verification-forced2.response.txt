@@ -1,0 +1,8 @@
+Baseline: 13/13 pass. Now the refactor: one shared helper used by both places (also reusing `lib/time.ts` for the day bounds).
+
+The overlap check now lives in one helper, `hasOverlap(bookings, range)`, in `src/services/bookingService.ts`. Both `createBooking` and the fast path in `checkAvailability` call it.
+
+- **Tests:** `npm test` shows 13/13 passing (2 files), the same as before the change. This was a fresh run after the edit.
+- **Type-check:** I couldn't run `npx tsc --noEmit` because the command needed approval that wasn't available here, so types are unchecked beyond what vitest covers.
+- **Behaviour:** The change only moves the `.some(overlaps)` call into a function. It still uses `overlaps` from the domain module, and `findBookingsForDay` still returns only `CONFIRMED` bookings, so rule 2 (cancelled bookings never conflict) is unchanged. The edit is 8 insertions and 6 deletions in that one file.
+- **Left alone:** `checkAvailability` still builds its day bounds inline instead of using `lib/time.ts`. That duplication wasn't part of your request.

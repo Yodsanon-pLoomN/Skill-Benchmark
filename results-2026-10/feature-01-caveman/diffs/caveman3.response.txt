@@ -1,0 +1,15 @@
+Added `PATCH /bookings/{id}/extend` in `Controllers/BookingsController.cs`. I couldn't build or run it, because the build command needed approval and wasn't approved. It's untested.
+
+Responses:
+- **Missing `newEndsAt`:** 400.
+- **Unknown booking id:** 404.
+- **Not `CONFIRMED`:** 409.
+- **`newEndsAt` not after current `EndsAt`:** 400.
+- **Total duration from `StartsAt` over 8 hours:** 400.
+- **Overlaps another `CONFIRMED` booking in the same room:** 409. It uses `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`, so back-to-back bookings are allowed. The booking being extended is excluded from the check.
+- **Success:** the new `EndsAt` is saved and the updated booking is returned with 200.
+
+- **Timestamps:** `newEndsAt` is converted to UTC before comparing, since stored values are UTC. A timestamp with no offset is read as server-local time, so clients should send `Z` or an explicit offset.
+- **Overlap check:** it runs in memory over the room's `CONFIRMED` bookings rather than in SQL, because SQLite stores `DateTime` as text.
+
+Run `dotnet build` to check it compiles.

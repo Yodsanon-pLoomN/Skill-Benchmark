@@ -1,0 +1,48 @@
+## 1. Who does what
+
+**`RoomService`** (`room.service.ts`) is a thin HTTP wrapper and has no logic.
+- `listRooms()` calls `GET {baseUrl}/rooms` and returns `Observable<Room[]>`.
+- `getAvailability(roomId, date)` calls `GET {baseUrl}/rooms/:id/availability?date=…` and returns `Observable<AvailabilityResponse>`.
+- It defines the response types: `Room`, `FreeInterval {startsAt, endsAt}` and `AvailabilityResponse {roomId, date, free[]}`.
+- `baseUrl` comes from `environment.bookingApiBaseUrl`.
+- The comment says the Node API is the single source of truth. The service re-implements no booking rules.
+
+**`RoomAvailabilityComponent`** owns UI state and presentation.
+- State: `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading` and `errorMessage`.
+- It decides when to fetch, handles errors and loading flags, and formats each slot as text.
+
+**How they talk:** the component injects the service and subscribes to its observables. Data flows one way, from service to component state to template. The service knows nothing about the component.
+
+## 2. Page load to slots on screen
+
+1. The component is created and `ngOnInit` runs.
+2. `date` is set to today: `new Date().toISOString().slice(0,10)`. This is today's **UTC** date, not the local date.
+3. `listRooms()` fires `GET /rooms`.
+4. On success:
+   - `rooms` is stored.
+   - If the list is non-empty, `selectedRoomId = rooms[0].id` and `loadAvailability()` is called.
+   - On error, `errorMessage = 'Could not load rooms.'`.
+5. `loadAvailability()` returns early if the room or date is empty. Otherwise it sets `loading = true`, clears the error, and calls `GET /rooms/{id}/availability?date=YYYY-MM-DD`.
+6. The backend returns `{ roomId, date, free: [{startsAt, endsAt}, …] }`. `startsAt` and `endsAt` are strings, presumably ISO timestamps. I'm inferring this from the TS types and `new Date(...)` parsing. I haven't looked at the backend.
+7. On success, `freeIntervals = res.free` and `loading = false`. On error, `errorMessage = 'Could not load availability.'` and `loading = false`.
+8. The template shows `<ul>` only when `!loading && !errorMessage`. Each slot renders `formatSlot(slot)`:
+   - It parses both strings with `new Date(...)`.
+   - It takes `toISOString().slice(11,16)`, which gives `HH:mm` in UTC.
+   - The result looks like `09:00–10:30 UTC`.
+   - If the array is empty, it shows "No free slots."
+9. After load, changing the room `<select>` or the date `<input>` triggers `(ngModelChange)="loadAvailability()"`, which repeats steps 5–8.
+
+There's a gotcha in step 9. The two `ngModelChange` handlers can fire before `[(ngModel)]` has written the new value into the field. In practice, two-way binding sets the field first, so this usually works. Also, rapid changes issue overlapping requests with no cancellation, so a slow earlier response can overwrite a newer one.
+
+## 3. Where the half-open `[start, end)` rule matters
+
+Half-open means a slot that ends at 10:00 and one that starts at 10:00 don't overlap. The end instant is **exclusive**. The component never compares or merges intervals, so it's safe today. The risk is in the display and in any future logic.
+
+- **`formatSlot` (`.ts:58-63`)** prints `endsAt` as a plain end time. Under `[start, end)`, `09:00–10:00` means free up to but not including 10:00. A user could read "10:00" as bookable, but a booking starting at 10:00 is a different slot. The label is fine only if users understand the end is exclusive. If you change the wording to something like "until 10:00 inclusive" or add 1 minute, you show wrong data.
+- **Truncating to `HH:mm` (`.ts:61`)** drops seconds and milliseconds. If a boundary has seconds, such as `10:00:30`, the label rounds it down and can display a slot that looks like it ends earlier or abuts the next one. Adjacent slots could look overlapping or gapped when they aren't.
+- **Hardcoded UTC (`.ts:24, 61`)** shifts which day "today" is, and shifts both ends of every slot. Near midnight, a slot that is `[23:00, 00:00)` has an `endsAt` on the next calendar day. The label shows `23:00–00:00`, which reads as a wrong or zero-length range. The default date can also be yesterday or tomorrow for local users.
+- **Future code that adds client-side logic** is the biggest trap. Examples are merging adjacent slots, hiding slots shorter than N minutes, checking whether a chosen time fits, or computing duration. These must treat `end` as exclusive. With `<=` instead of `<`, or with `end - 1`, you'd show a slot as free when it isn't, or hide a valid one. The existing comment says this logic stays server-side. Keep it there, or reuse the backend's rule rather than reinventing it.
+
+Even though the backend does the math, the frontend can still show a wrong answer, because it controls how the boundaries are rendered, which timezone is applied, and how precisely the times are shown.
+
+I changed no files.

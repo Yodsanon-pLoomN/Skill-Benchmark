@@ -1,0 +1,7 @@
+I merged the two overlap scans in `src/services/bookingService.ts` into one helper, `overlapsAny(bookings, range)`. All 13 existing tests pass, though none of them targets the `checkAvailability` fast path specifically.
+
+- **`createBooking`:** it now calls `overlapsAny(sameDay, range)` for the conflict check.
+- **`checkAvailability`:** its fast path now calls `overlapsAny(bookings, dayWindow)`. I also removed the "copied rather than reused" comment.
+- **No other change:** `findBookingsForDay` already returns only `CONFIRMED` bookings, so cancelled bookings are still ignored (rule 2). The interval sweep is untouched.
+
+I kept the fast path rather than deleting it. The sweep only gives the same answer when every returned booking falls inside the day. The repository query uses an inclusive `lte`/`gte` bound, so it can return a booking that starts in the last millisecond of the day. Dropping the fast path could change `checkAvailability` output in that case.

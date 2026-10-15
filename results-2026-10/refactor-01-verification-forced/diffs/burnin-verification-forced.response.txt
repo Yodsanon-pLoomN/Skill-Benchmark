@@ -1,0 +1,13 @@
+Splitting the command to avoid the `$?` variable.
+
+I replaced the two copies of the overlap scan in `src/services/bookingService.ts` with one shared helper, `anyOverlap(existing, range)`. All 13 tests pass, but the type check didn't run and I didn't verify every case in `docs/DOMAIN.md`.
+
+- **Shared helper:** `anyOverlap` is a thin wrapper around `overlaps` that returns true if any existing booking overlaps the candidate range.
+- **`createBooking`:** it now calls `anyOverlap(sameDay, range)` for its conflict check.
+- **`checkAvailability`:** its fast path now calls `anyOverlap(bookings, dayWindow)`. I also removed the "copied rather than reused" comment, which no longer applies.
+- **Behaviour:** the conditions and the thrown errors are unchanged.
+
+I ran `npm test` before and after the edit, and both runs gave 13/13 passing (8 in `booking.test.ts`, 5 in `bookingService.integration.test.ts`).
+
+- **Type check not run:** the permission prompt for `npx tsc --noEmit` wasn't approved, so I haven't confirmed the code type-checks. Vitest doesn't type-check, so please run it yourself.
+- **Domain cases not mapped:** I didn't compare the tests against each rule in `docs/DOMAIN.md`. The unchanged logic and passing suite make a regression unlikely, but I can't claim every domain case is covered by a test.

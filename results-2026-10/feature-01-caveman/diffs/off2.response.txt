@@ -1,0 +1,22 @@
+I've written the endpoint, but I couldn't build it. The `dotnet build` command needs approval that I haven't been given, so none of this has been compiled or run.
+
+The endpoint is in `Controllers/BookingsController.cs`. The checks run in this order, and each failure returns a 4xx:
+
+| Check | Response |
+|---|---|
+| `newEndsAt` missing or not a valid timestamp | 400 |
+| Booking id not found | 404 |
+| Booking not `CONFIRMED` | 409 |
+| `newEndsAt` not strictly after the current `EndsAt` | 400 |
+| Total duration from `StartsAt` over 8 hours | 422 |
+| Overlap with another `CONFIRMED` booking in the same room | 409 |
+
+For the overlap rule I used your half-open formula, so a booking that ends exactly when another starts is allowed. The booking being extended is excluded from the comparison.
+
+On success it saves the new `EndsAt` and returns the updated booking. I convert `newEndsAt` to UTC before comparing.
+
+I made two choices you didn't specify. The status codes above are my own pick, and I do the overlap comparison in memory because SQLite stores `DateTime` as text.
+
+I haven't tested it against the seeded data either.
+
+If you approve the build command, I'll run it and then try the endpoint.

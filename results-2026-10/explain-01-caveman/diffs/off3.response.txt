@@ -1,0 +1,45 @@
+I read the three files you named. `docs/DOMAIN.md` is mentioned in a comment in `room.service.ts`, but it isn't in this repo. I haven't seen the backend, so what the API sends back comes from the TypeScript interfaces and the code that consumes them. I haven't confirmed it against the real server.
+
+## 1. Who does what
+
+**`RoomService`** (`services/room.service.ts`) is a thin HTTP wrapper. It has two methods:
+- `listRooms()` sends `GET {bookingApiBaseUrl}/rooms` and returns `Observable<Room[]>`.
+- `getAvailability(roomId, date)` sends `GET .../rooms/{roomId}/availability?date=...` and returns `Observable<AvailabilityResponse>`.
+
+It also declares the response types (`Room`, `FreeInterval`, `AvailabilityResponse`). It holds no booking logic. The comment at the top says the Node API is the single source of truth.
+
+**`RoomAvailabilityComponent`** owns the UI state: `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading` and `errorMessage`. It decides when to call the service, handles success and failure, and formats each slot for display.
+
+**How they talk:** the component injects the service and subscribes to the Observables it returns. The service never knows about the component. Data flows one way, from the HTTP response through `next` or `error` into the component's fields. The template then renders those fields.
+
+## 2. Page load to slots on screen
+
+1. Angular creates the component and runs `ngOnInit`.
+2. `date` is set to today's date as `YYYY-MM-DD`, from `new Date().toISOString().slice(0, 10)`.
+3. `listRooms()` fires `GET /rooms`. The backend returns an array of `{id, name, capacity, isActive}`.
+4. In the `next` handler, `rooms` is stored. If the list isn't empty, `selectedRoomId` is set to the first room's `id` and `loadAvailability()` runs. On error, the message is "Could not load rooms."
+5. `loadAvailability()` returns early if there's no room or date. Otherwise it sets `loading = true`, clears `errorMessage`, and calls `getAvailability(roomId, date)`.
+6. The backend responds with `{ roomId, date, free: [{ startsAt, endsAt }, ...] }`. The timestamps are strings, presumably ISO 8601. Each `free` entry is a half-open range `[startsAt, endsAt)`.
+7. The component does `freeIntervals = res.free` and `loading = false`. It does no filtering, sorting or merging.
+8. The template shows `<ul>` only when `!loading && !errorMessage`. It loops over `freeIntervals` and renders `formatSlot(slot)` for each one. If the array is empty, it shows "No free slots."
+9. `formatSlot` runs `new Date()` on each string, takes `toISOString().slice(11, 16)` (the `HH:mm` part) and returns something like `09:00–10:30 UTC`.
+
+Changing the room dropdown or the date input calls `loadAvailability()` again through `(ngModelChange)`. This repeats steps 5 to 9.
+
+## 3. Where the half-open rule matters here
+
+The frontend doesn't implement the rule, but it can still show the wrong answer in these places:
+
+- **`formatSlot` label (`room-availability.component.ts:58-63`).** A slot `[09:00, 10:00)` renders as `09:00–10:00`. That reads like an inclusive range. The end is exclusive: the room is free from 09:00 up to, but not including, 10:00. A booking starting at 10:00 is legal and doesn't conflict. If you reword or restyle the label, don't imply that 10:00 is inside the free slot.
+- **Adjacent slots.** Two intervals like `[09:00, 10:00)` and `[10:00, 11:00)` touch but don't overlap. The component deliberately doesn't merge them, as its comment says. If you add merging, use `<=` (not `<`) when joining on `end == start`, or the slots won't merge.
+- **Any future comparison or duration logic.** Examples are "does this slot fit a 60-minute meeting" or "is this time free". Using `<=` instead of `<` on the end boundary produces an off-by-one error. A slot of exactly 60 minutes fits, and a time equal to `endsAt` is not free.
+- **Day boundaries.** A slot ending at midnight shows as `00:00`, which looks like the start of the day, not the end of it. The exclusive end makes this more confusing.
+- **Timezone conversion.** `formatSlot` always prints UTC, so the boundaries match what the backend sent. If you switch to local time, boundaries shift and the half-open edges can land on a different calendar day. If the backend ever sends timestamps without a `Z` or offset, `new Date()` reads them as local time and `toISOString()` shifts them, so the printed boundary is wrong.
+- **The `date` value.** The default comes from `toISOString()`, so it's the UTC date, not the user's local date. Near midnight, a user can see "today" as the wrong day. Whether that is correct depends on how the backend defines a day, which I can't see from here.
+
+## Other things to know
+
+- There's no cancellation of in-flight requests. If a user switches rooms quickly, a slow earlier response can overwrite a newer one. `switchMap` would fix that.
+- On an availability error, `freeIntervals` keeps its old value. The `<ul>` is hidden because `errorMessage` is set, so users won't see stale data today. A later change to the template could expose it.
+
+I didn't change any files.

@@ -1,0 +1,9 @@
+Tests not run. Permission needed for the test command.
+
+Both bugs found and fixed. I haven't run the test suite, because the test command needed approval.
+
+**Report 1 (11:00 back-to-back rejected):** `overlaps()` in `src/domain/booking.ts:12` used `<=` and `>=`, so ranges that only touch at 11:00 counted as overlapping. DOMAIN.md says the interval is half-open and overlap is `a.startsAt < b.endsAt && a.endsAt > b.startsAt`. I changed the comparisons to `<` and `>`.
+
+**Report 2 (cancelled 2pm booking still blocks):** `findBookingsForDay()` in `src/repositories/bookingRepository.ts` had no status filter, even though its doc comment says cancelled bookings are excluded. Cancelled bookings therefore reached both the conflict check and the availability view. I added `status: "CONFIRMED"` to the query, which fixes both and matches rule 2.
+
+To check the fix, run `npx vitest run`.

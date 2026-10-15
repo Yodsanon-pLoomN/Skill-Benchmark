@@ -1,0 +1,7 @@
+run_code,task_id,skill_name,condition,order,session_id,input,output,cache_read,cache_w5,cache_w1h,cost_usd,cost_cold_usd,cache_hit,note
+off1,feature-01,verification-before-completion,off,1,02f3ee28-a5f0-4e04-8ad5-1f7518677da1,14,3830,364015,0,6721,0.138015,0.779800,0.9818,
+verification-before-completion1,feature-01,verification-before-completion,skill,2,262e89e8-1d38-4e89-88f2-df39152c44c2,14,2683,360891,0,2896,0.110620,0.754432,0.9920,
+off2,feature-01,verification-before-completion,off,3,487c4cb0-ccb0-4010-b349-afab4bf9132f,16,4245,421382,0,7198,0.155550,0.899642,0.9832,
+verification-before-completion2,feature-01,verification-before-completion,skill,4,a16a0e67-8e14-4547-9f50-bc09763b96ba,10,2352,253789,0,1737,0.081246,0.534592,0.9932,
+off3,feature-01,verification-before-completion,off,5,688e4911-22d4-4a53-b2c4-65952c4e7c20,20,4929,536809,0,5495,0.178672,1.133938,0.9898,
+verification-before-completion3,feature-01,verification-before-completion,skill,6,286b12a3-da96-4a6e-bafc-3f9fa4f5e79d,14,3492,362215,0,4967,0.127259,0.769312,0.9864,

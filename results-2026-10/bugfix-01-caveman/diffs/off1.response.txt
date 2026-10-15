@@ -1,0 +1,8 @@
+Both reports had a separate cause, and I've fixed both. I haven't run the type-check or any tests yet.
+
+- **Report 1 (11:00 back-to-back rejected):** `overlaps()` in `src/domain/booking.ts` used `<=` and `>=`, so two bookings that touch at 11:00 counted as overlapping. DOMAIN.md says the interval is half-open and the check must be strict, so I changed it to `<` and `>`.
+- **Report 2 (cancelled 2pm slot still blocked):** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter by status. Its comment said cancelled bookings were excluded, but the query returned them, so they blocked new bookings. I added `status: "CONFIRMED"` to the query. This function also feeds the availability endpoint, so cancelled bookings no longer hide free time there either.
+
+I left the day-range bounds in that query as they were. They only pre-select a day's bookings, and the corrected `overlaps()` makes the exact decision.
+
+Next I'm running `npx tsc --noEmit` and looking for existing tests.

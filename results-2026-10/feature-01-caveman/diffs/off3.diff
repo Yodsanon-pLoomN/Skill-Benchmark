@@ -1,0 +1,72 @@
+diff --git a/Controllers/BookingsController.cs b/Controllers/BookingsController.cs
+new file mode 100644
+index 0000000..a0390b8
+--- /dev/null
++++ b/Controllers/BookingsController.cs
+@@ -0,0 +1,66 @@
++using System.Globalization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++using ReportsApi.Data;
++using ReportsApi.Models;
++
++namespace ReportsApi.Controllers;
++
++public record ExtendBookingRequest(string? NewEndsAt);
++
++[ApiController]
++[Route("bookings")]
++public class BookingsController : ControllerBase
++{
++    private static readonly TimeSpan MaxDuration = TimeSpan.FromHours(8);
++
++    private readonly ReportsDbContext _db;
++
++    public BookingsController(ReportsDbContext db)
++    {
++        _db = db;
++    }
++
++    [HttpPatch("{id}/extend")]
++    public async Task<ActionResult<Booking>> Extend(string id, [FromBody] ExtendBookingRequest request)
++    {
++        if (!DateTime.TryParse(request.NewEndsAt, CultureInfo.InvariantCulture,
++                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var newEndsAt))
++        {
++            return BadRequest(new { error = "newEndsAt must be a valid ISO 8601 timestamp." });
++        }
++
++        var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id);
++        if (booking is null)
++            return NotFound(new { error = "Booking not found." });
++
++        if (booking.Status != "CONFIRMED")
++            return Conflict(new { error = "Only CONFIRMED bookings can be extended." });
++
++        // Timestamps are stored as UTC; SQLite returns them with Kind=Unspecified,
++        // so compare raw ticks rather than relying on Kind.
++        var startsAt = booking.StartsAt.Ticks;
++        var currentEndsAt = booking.EndsAt.Ticks;
++
++        if (newEndsAt.Ticks <= currentEndsAt)
++            return BadRequest(new { error = "newEndsAt must be after the booking's current end." });
++
++        if (newEndsAt.Ticks - startsAt > MaxDuration.Ticks)
++            return BadRequest(new { error = "Total booking duration must not exceed 8 hours." });
++
++        // Compared in memory: SQLite stores DateTime as text, so avoid relying on
++        // server-side text comparison of timestamps.
++        var others = await _db.Bookings
++            .Where(b => b.RoomId == booking.RoomId && b.Id != booking.Id && b.Status == "CONFIRMED")
++            .ToListAsync();
++
++        var conflict = others.Any(o => startsAt < o.EndsAt.Ticks && newEndsAt.Ticks > o.StartsAt.Ticks);
++        if (conflict)
++            return Conflict(new { error = "Extended range overlaps another confirmed booking in this room." });
++
++        booking.EndsAt = DateTime.SpecifyKind(newEndsAt, DateTimeKind.Utc);
++        await _db.SaveChangesAsync();
++
++        return Ok(booking);
++    }
++}

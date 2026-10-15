@@ -1,0 +1,11 @@
+I made the refactor, but I couldn't run the tests or the type-check. Every command I tried (`tsc`, `npm test`) was blocked by a permission prompt that this non-interactive session can't answer. Please run `npx tsc --noEmit` and `npm test` yourself to confirm.
+
+**What changed in `src/services/bookingService.ts`:**
+- I added one private helper, `hasOverlappingBooking(bookings, range)`. It calls the existing domain `overlaps()` on each booking.
+- `createBooking` now calls the helper for its conflict check.
+- The `checkAvailability` fast path now calls the same helper against the full-day window. I also removed the comment saying that code was copied from `createBooking`.
+
+The refactor doesn't change what either endpoint returns:
+- Both call sites still pass the same bookings, which `findBookingsForDay` supplies, and the same ranges as before.
+- The domain's half-open `overlaps()` rule is untouched.
+- The fast path's day window still ends at `23:59:59.999`, so a booking that starts exactly in that last millisecond is handled as before.

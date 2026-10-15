@@ -1,0 +1,9 @@
+Refactor edits are in; I'm now re-running the type-check and tests to verify, since my first attempts got blocked by permission checks.
+
+The overlap check now lives in one helper, `hasOverlappingBooking`, in `src/services/bookingService.ts`. Both `createBooking` and the `checkAvailability` fast path call it. `npm test` passes 13/13 after the change, the same as before it.
+
+I did not get a type-check result. `npx tsc --noEmit` needed approval and was blocked, so nothing has verified the types beyond vitest, which doesn't type-check.
+
+- **Behaviour:** The helper is the same `bookings.some(existing => overlaps(existing, range))` that both places used inline. Each caller still fetches its own bookings with `findBookingsForDay`. I did not touch `overlaps`, so the half-open interval rule from `docs/DOMAIN.md` is unchanged.
+- **Test coverage:** I haven't confirmed that the 13 tests cover every `docs/DOMAIN.md` case. The "behaviour unchanged" claim rests on the helper being the same expression and on those tests passing.
+- **Comment:** I also removed the "copied from createBooking" note on the fast path, since it no longer applies.

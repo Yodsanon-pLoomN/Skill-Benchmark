@@ -1,0 +1,18 @@
+Added endpoint. Build check blocked by permission prompt, so not compiled or run yet.
+
+**New file:** `Controllers/BookingsController.cs` — `PATCH /bookings/{id}/extend`, body `{ "newEndsAt": "..." }`.
+
+Checks, in order:
+- Missing `newEndsAt`: 400.
+- Booking not found: 404.
+- Status not `CONFIRMED`: 409.
+- `newEndsAt <= EndsAt`: 400.
+- `newEndsAt - StartsAt > 8h`: 400.
+- Overlap with another `CONFIRMED` booking in same room (`a.Start < b.End && a.End > b.Start`, half-open, own booking excluded): 409.
+- Success: saves `EndsAt`, returns 200 with the booking.
+
+Design choices:
+- Overlap compare runs in memory, not SQL, because SQLite stores `DateTime` as text.
+- All times treated as UTC. That matches the seed data. A `newEndsAt` with an offset is converted to UTC.
+
+Next: run `dotnet build` to confirm it compiles. Approve that command and I'll run it, or run it yourself.

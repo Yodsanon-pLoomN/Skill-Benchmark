@@ -1,0 +1,34 @@
+I'll start by looking at the project structure.
+
+Now I'll build and exercise every rule against the running app.
+
+I couldn't verify this. The code is written, but I never got a build or a test run, so I can't say it works.
+
+Every attempt to run `dotnet build` was blocked. Some calls were rejected by the command checker. The plain `dotnet build` calls need approval, and this session is non-interactive, so I can't get it. Nothing has been compiled or run.
+
+## What I wrote (unverified)
+- **`Controllers/BookingsController.cs`** (new): `PATCH /bookings/{id}/extend` with body `{ "newEndsAt": ... }`.
+- **`Services/BookingExtensionService.cs`** (new): applies the four rules and saves the new `EndsAt`.
+- **`Program.cs`**: registers `BookingExtensionService`.
+
+## Error responses
+| Case | Status |
+|---|---|
+| `newEndsAt` missing or not a valid timestamp | 400 |
+| Booking not found | 404 |
+| Booking is not `CONFIRMED` (rule 1) | 409 |
+| Overlaps another `CONFIRMED` booking in the same room (rule 4) | 409 |
+| `newEndsAt` not strictly after the current `EndsAt` (rule 2) | 422 |
+| Total duration from `StartsAt` over 8 hours (rule 3) | 422 |
+
+On success it returns 200 with the updated booking.
+
+Two choices of mine you may want changed:
+- **Timestamps:** all timestamps are treated as UTC. SQLite hands stored values back with an unspecified kind.
+- **Overlap check:** it runs in memory and uses `a.Start < b.End && a.End > b.Start`, so a booking ending exactly when another starts is allowed. I did that to avoid comparing timestamps as text in SQLite.
+
+## What's still needed
+1. Run `dotnet build`. If it passes, start the app and send a request for each case in the table.
+2. Seed data won't cover the overlap case. The nearest `CONFIRMED` bookings in the same room are on different days, and reaching them breaks the 8-hour limit first. You'd need to insert a test booking close to one of the seeded ones.
+
+If you approve `dotnet build` and `dotnet run`, I'll do both checks and report the actual output.

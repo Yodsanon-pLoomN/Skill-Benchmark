@@ -1,0 +1,24 @@
+I've written the endpoint and I'm about to build it to check it compiles.
+
+I added `PATCH /bookings/{id}/extend`, but I haven't built or run it. Both attempts to run `dotnet build` were blocked pending approval. Please run `dotnet build` to check it compiles. I also haven't called the endpoint, so none of the four rules has been exercised.
+
+**What I added**
+- `Services/BookingExtensionService.cs` holds the rules and saves the new `EndsAt`.
+- `Controllers/BookingsController.cs` maps the request and the error codes.
+- `Program.cs` registers the new service.
+
+**Error responses**
+
+| Case | Status |
+|---|---|
+| Booking id not found | 404 |
+| Booking is not `CONFIRMED` (rule 1) | 409 |
+| Extended range overlaps another `CONFIRMED` booking in the room (rule 4) | 409 |
+| `newEndsAt` missing, or not after the current `EndsAt` (rule 2) | 400 |
+| Total duration from `StartsAt` to `newEndsAt` is over 8 hours (rule 3) | 400 |
+
+The overlap check uses `StartsAt < b.EndsAt && newEndsAt > b.StartsAt`, so a booking that ends exactly when another starts is allowed. It skips the booking being extended and any `CANCELLED` booking.
+
+The 404 and the 409 for a non-`CONFIRMED` booking are my own choices, since the task only asked for "an appropriate 4xx". I didn't add any tests.
+
+Timestamps are parsed as `DateTimeOffset` and converted to UTC. The seed data is stored in UTC, so comparisons line up.

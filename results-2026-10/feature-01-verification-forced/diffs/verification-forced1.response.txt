@@ -1,0 +1,31 @@
+I'll start by looking at the project structure.
+
+Writing the endpoint is done; now building it to verify. The last command was blocked, so I'm retrying it in simpler pieces.
+
+The endpoint is written but **not built or tested**. This environment refused every `dotnet` command (`dotnet build` and `dotnet --version`) because they need approval, and the session can't prompt for it. I haven't confirmed that the code compiles, and I haven't run any requests against it.
+
+**What I added**
+- `Services/BookingExtensionService.cs` holds the rule checks and the save.
+- `Controllers/BookingsController.cs` exposes `PATCH /bookings/{id}/extend` with body `{ "newEndsAt": "..." }`.
+- `Program.cs` registers the new service.
+
+**How each rule is handled**
+
+| Case | Response |
+|---|---|
+| Booking id doesn't exist | 404 |
+| Booking isn't `CONFIRMED` (rule 1) | 409 |
+| `newEndsAt` missing | 400 |
+| `newEndsAt` is not strictly after the current `EndsAt` (rule 2) | 400 |
+| Total time from `StartsAt` to `newEndsAt` is over 8 hours (rule 3) | 400 |
+| Extended range overlaps another `CONFIRMED` booking in the same room (rule 4) | 409 |
+| Success | 200 with the updated booking, and `EndsAt` is saved |
+
+The overlap check uses `StartsAt < o.EndsAt && newEndsAt > o.StartsAt`, so a booking that ends exactly when another starts is allowed. The 8-hour check allows exactly 8 hours. The overlap check ignores the booking being extended and ignores cancelled bookings.
+
+**To verify, run these yourself or approve `dotnet` for this session:**
+1. `dotnet build` should exit 0.
+2. Start the app, then send PATCH requests for each row in the table. The seed data has only two confirmed bookings, a day apart, so testing the overlap rule means adding a booking right after `seed-1` or `seed-2` in the same room, using a throwaway database.
+3. Extending the cancelled booking in room Beta isn't possible by id: it's `seed-3`, which should return 409.
+
+I haven't committed anything.

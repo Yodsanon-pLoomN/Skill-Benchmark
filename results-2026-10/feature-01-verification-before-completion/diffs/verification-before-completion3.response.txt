@@ -1,0 +1,28 @@
+Build check is waiting on permission; retrying with a plain command.
+
+I added `PATCH /bookings/{id}/extend`, but I haven't compiled or run it. Every attempt to run `dotnet build` was blocked on a permission approval that this non-interactive session couldn't give. Please run `dotnet build` yourself before relying on it.
+
+**What I added**
+- **`Services/BookingExtensionService.cs`** has the rule checks and the save. It looks up the booking, then checks the rules in order, and only saves if all pass.
+- **`Controllers/BookingsController.cs`** exposes the `PATCH` route and turns each failure into a response.
+- **`Program.cs`** registers the new service.
+
+**Responses**
+
+| Case | Status |
+|---|---|
+| Missing `newEndsAt` | 400 |
+| Booking not found | 404 |
+| Booking not `CONFIRMED` (e.g. cancelled) | 409 |
+| `newEndsAt` not strictly after current `EndsAt` | 400 |
+| Total duration from `StartsAt` to `newEndsAt` over 8 hours | 400 |
+| Overlaps another `CONFIRMED` booking in the same room | 409 |
+| Success | 200 with the updated booking |
+
+The overlap check uses `booking.StartsAt < other.EndsAt && newEndsAt > other.StartsAt` against the room's other confirmed bookings, so a booking ending exactly when another starts doesn't count as an overlap. It runs in memory rather than in the SQL query, because SQLite stores dates as text.
+
+**Choices I made that the spec didn't dictate**
+- I mapped the "cancelled booking" and "overlap" cases to 409 and the others to 400.
+- A timestamp with no timezone is compared as-is against stored values, with no conversion.
+
+I didn't write any tests.

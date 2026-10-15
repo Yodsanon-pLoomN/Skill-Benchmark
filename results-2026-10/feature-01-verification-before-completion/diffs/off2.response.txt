@@ -1,0 +1,28 @@
+Writing is done; now I'm building to check it compiles.
+
+I added `PATCH /bookings/{id}/extend`, but I couldn't build or run it. The permission prompt for `dotnet build` was blocked in this non-interactive session, so the code has never been compiled or called. Please run `dotnet build` and try a request before relying on it.
+
+**What I added**
+- `Services/BookingExtensionService.cs` holds the rule checks.
+- `Controllers/BookingsController.cs` holds the endpoint.
+- `Program.cs` registers the new service.
+
+**Rules and the responses I chose**
+
+| Case | Response |
+|---|---|
+| `newEndsAt` missing or not a valid timestamp | 400 |
+| Booking id not found | 404 |
+| Booking is not `CONFIRMED` (for example cancelled) | 409 |
+| `newEndsAt` is not strictly after the current `EndsAt` | 400 |
+| Total duration from `StartsAt` to `newEndsAt` is over 8 hours | 400 |
+| Overlap with another `CONFIRMED` booking in the same room | 409 |
+| Success | 200, with the updated booking saved |
+
+You didn't specify status codes, so these are my choices. Say if you'd prefer 422 for any of them.
+
+**Behavior to know about**
+- **Overlap rule:** it uses the half-open check you gave (`StartsAt < o.EndsAt && newEndsAt > o.StartsAt`), so a booking that ends exactly when another starts is allowed. The booking being extended is excluded from the comparison.
+- **In-memory comparison:** the overlap check runs in memory rather than in the SQLite query, to avoid relying on SQLite's text-based date comparison.
+- **No offset means UTC:** a timestamp without an offset is treated as UTC, which matches how the seed data is stored.
+- **Response shape:** the success response returns a plain object (id, room, user, start, end, status). That avoids serializing the `Room` navigation property, which could loop.

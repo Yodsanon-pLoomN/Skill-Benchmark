@@ -1,0 +1,7 @@
+run_code,task_id,skill_name,condition,order,session_id
+off1,feature-01,verification-forced,off,1,d4f918a5-977a-4d59-89fb-326c6f32d17c
+verification-forced1,feature-01,verification-forced,skill,2,addbde03-d1ec-4f55-b788-948f498aad6f
+off2,feature-01,verification-forced,off,3,2a68666a-7940-4494-ba5f-d8614b4b5a45
+verification-forced2,feature-01,verification-forced,skill,4,fb764dac-6195-4397-8e3b-598e52475e2f
+off3,feature-01,verification-forced,off,5,56299b0b-ccf3-493f-9fb1-f71699689d71
+verification-forced3,feature-01,verification-forced,skill,6,ecbdd8e7-369c-4653-b307-0140fc8bd073

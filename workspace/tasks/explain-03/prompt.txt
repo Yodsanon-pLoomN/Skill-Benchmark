@@ -1,0 +1,19 @@
+Read Services/RoomUsageReportService.cs, Controllers/ReportsController.cs,
+and Data/DbInitializer.cs.
+
+Then explain, for a developer who has just joined the team:
+
+1. Walk through GetRoomUsageAsync() step by step: what the EF Core query
+   fetches, what Include(r => r.Bookings) is doing there and what would be
+   different if it were removed, and how the method turns that data into
+   the sorted list the endpoint returns.
+2. Why does the code filter to b.Status == "CONFIRMED" before computing
+   ConfirmedBookingCount and TotalBookedHours? What would be wrong with the
+   report for a room like "Beta" (see the seed data in DbInitializer.cs) if
+   that filter were removed?
+3. Using the seed data in DbInitializer.cs, work out what GetRoomUsageAsync()
+   actually returns for room "Beta" as the code stands today - walk through
+   why, and say plainly whether this throws, returns null, or returns a
+   normal row with zero values.
+
+Do not change any files.

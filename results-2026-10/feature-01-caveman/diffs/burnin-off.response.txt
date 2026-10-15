@@ -1,0 +1,15 @@
+I've written the endpoint and am now trying to build it. The build command needs approval that I don't have in this non-interactive session, so I haven't compiled or run it.
+
+I added `PATCH /bookings/{id}/extend` in the new `Controllers/BookingsController.cs`, but I haven't compiled or run it. Every `dotnet build` attempt needed an approval I can't give in this non-interactive session. Please run `dotnet build` and try it against the seed data.
+
+**What it does:**
+- **Success:** it saves the new `EndsAt` and returns the updated booking with 200.
+- **Rule 1 (cancelled booking):** it returns 409.
+- **Rule 2 (`newEndsAt` not strictly after the current `EndsAt`):** it returns 400.
+- **Rule 3 (total duration over 8 hours from `StartsAt`):** it returns 400.
+- **Rule 4 (overlap with another `CONFIRMED` booking in the same room):** it returns 409. It uses `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`, so touching ranges don't overlap. The overlap check covers the whole extended range, from the original `StartsAt` to the new `EndsAt`. The booking itself is excluded.
+- **Not covered by your rules:** an unknown booking id returns 404, and a missing or malformed `newEndsAt` returns 400.
+
+Errors come back as problem-details responses. The overlap check runs in memory against that room's other confirmed bookings, because SQLite's EF provider can't reliably translate `DateTime` comparisons. Timestamps are normalised to UTC, and stored values are treated as UTC.
+
+I didn't add tests. The check and save aren't atomic, so two simultaneous extensions in the same room could both pass the overlap check.

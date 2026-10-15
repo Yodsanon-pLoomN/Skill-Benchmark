@@ -1,0 +1,129 @@
+diff --git a/Controllers/BookingsController.cs b/Controllers/BookingsController.cs
+new file mode 100644
+index 0000000..c470779
+--- /dev/null
++++ b/Controllers/BookingsController.cs
+@@ -0,0 +1,39 @@
++using Microsoft.AspNetCore.Mvc;
++using ReportsApi.Models;
++using ReportsApi.Services;
++
++namespace ReportsApi.Controllers;
++
++public record ExtendBookingRequest(DateTimeOffset? NewEndsAt);
++
++[ApiController]
++[Route("bookings")]
++public class BookingsController : ControllerBase
++{
++    private readonly BookingExtensionService _extensionService;
++
++    public BookingsController(BookingExtensionService extensionService)
++    {
++        _extensionService = extensionService;
++    }
++
++    [HttpPatch("{id}/extend")]
++    public async Task<ActionResult<Booking>> Extend(string id, [FromBody] ExtendBookingRequest request)
++    {
++        if (request.NewEndsAt is null)
++            return BadRequest(new { error = "newEndsAt is required (ISO 8601 timestamp)." });
++
++        var outcome = await _extensionService.ExtendAsync(id, request.NewEndsAt.Value.UtcDateTime);
++
++        return outcome.Result switch
++        {
++            ExtendResult.Success => Ok(outcome.Booking),
++            ExtendResult.NotFound => NotFound(new { error = "Booking not found." }),
++            ExtendResult.NotConfirmed => Conflict(new { error = "Only CONFIRMED bookings can be extended." }),
++            ExtendResult.NotAfterCurrentEnd => BadRequest(new { error = "newEndsAt must be after the booking's current EndsAt." }),
++            ExtendResult.ExceedsMaxDuration => BadRequest(new { error = "Total booking duration must not exceed 8 hours." }),
++            ExtendResult.Overlap => Conflict(new { error = "Extended range overlaps another CONFIRMED booking in the same room." }),
++            _ => StatusCode(500),
++        };
++    }
++}
+diff --git a/Program.cs b/Program.cs
+index 27e8eb1..dcf0f58 100644
+--- a/Program.cs
++++ b/Program.cs
+@@ -9,6 +9,7 @@ builder.Services.AddControllers();
+ var connectionString = builder.Configuration.GetConnectionString("Default") ?? "Data Source=reports.db";
+ builder.Services.AddDbContext<ReportsDbContext>(options => options.UseSqlite(connectionString));
+ builder.Services.AddScoped<RoomUsageReportService>();
++builder.Services.AddScoped<BookingExtensionService>();
+ 
+ var app = builder.Build();
+ 
+diff --git a/Services/BookingExtensionService.cs b/Services/BookingExtensionService.cs
+new file mode 100644
+index 0000000..a3444cb
+--- /dev/null
++++ b/Services/BookingExtensionService.cs
+@@ -0,0 +1,66 @@
++using Microsoft.EntityFrameworkCore;
++using ReportsApi.Data;
++using ReportsApi.Models;
++
++namespace ReportsApi.Services;
++
++public enum ExtendResult
++{
++    Success,
++    NotFound,
++    NotConfirmed,
++    NotAfterCurrentEnd,
++    ExceedsMaxDuration,
++    Overlap,
++}
++
++public record ExtendOutcome(ExtendResult Result, Booking? Booking = null);
++
++public class BookingExtensionService
++{
++    public static readonly TimeSpan MaxDuration = TimeSpan.FromHours(8);
++
++    private readonly ReportsDbContext _db;
++
++    public BookingExtensionService(ReportsDbContext db)
++    {
++        _db = db;
++    }
++
++    public async Task<ExtendOutcome> ExtendAsync(string id, DateTime newEndsAt)
++    {
++        var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id);
++        if (booking is null) return new ExtendOutcome(ExtendResult.NotFound);
++
++        if (booking.Status != "CONFIRMED") return new ExtendOutcome(ExtendResult.NotConfirmed);
++
++        // SQLite returns Unspecified-kind values; everything is stored as UTC.
++        var startsAt = AsUtc(booking.StartsAt);
++        var endsAt = AsUtc(booking.EndsAt);
++        newEndsAt = AsUtc(newEndsAt);
++
++        if (newEndsAt <= endsAt) return new ExtendOutcome(ExtendResult.NotAfterCurrentEnd);
++
++        if (newEndsAt - startsAt > MaxDuration) return new ExtendOutcome(ExtendResult.ExceedsMaxDuration);
++
++        // Compared in memory: SQLite stores DateTime as text, so keep the
++        // half-open overlap check out of SQL translation.
++        var others = await _db.Bookings
++            .Where(b => b.RoomId == booking.RoomId && b.Id != booking.Id && b.Status == "CONFIRMED")
++            .ToListAsync();
++
++        var overlaps = others.Any(o => startsAt < AsUtc(o.EndsAt) && newEndsAt > AsUtc(o.StartsAt));
++        if (overlaps) return new ExtendOutcome(ExtendResult.Overlap);
++
++        booking.EndsAt = newEndsAt;
++        await _db.SaveChangesAsync();
++        return new ExtendOutcome(ExtendResult.Success, booking);
++    }
++
++    private static DateTime AsUtc(DateTime value) => value.Kind switch
++    {
++        DateTimeKind.Utc => value,
++        DateTimeKind.Local => value.ToUniversalTime(),
++        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
++    };
++}

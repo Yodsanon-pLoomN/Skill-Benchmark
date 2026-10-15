@@ -1,0 +1,27 @@
+This service (a small reports/booking-support API) needs a new endpoint so
+the front desk can extend a meeting that's running long, instead of asking
+people to make a whole new booking.
+
+Add:
+
+    PATCH /bookings/{id}/extend
+
+Request body: `{ "newEndsAt": "<ISO 8601 timestamp>" }`
+
+Rules the new endpoint must enforce (same rules the rest of this system's
+booking domain follows elsewhere):
+
+1. Only a booking with `Status == "CONFIRMED"` may be extended. A cancelled
+   booking must be rejected.
+2. `newEndsAt` must be strictly after the booking's current `EndsAt` (this
+   is an extension, not a shrink or no-op).
+3. The extended booking's *total* duration, from its original `StartsAt` to
+   the new `EndsAt`, must not exceed 8 hours.
+4. The extended range must not overlap any other `CONFIRMED` booking in the
+   same room. Two time ranges overlap when each starts before the other
+   ends: `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`. Ranges are
+   half-open — a booking ending exactly when another starts does not
+   overlap it.
+
+On success, persist the updated `EndsAt` and return the updated booking.
+Return an appropriate error response (4xx) for each rule violated above.

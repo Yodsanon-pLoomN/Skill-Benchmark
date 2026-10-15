@@ -1,0 +1,51 @@
+## 1. Who does what
+
+**RoomService** (`room.service.ts`) is a thin HTTP wrapper.
+- `listRooms()` calls `GET {base}/rooms`.
+- `getAvailability(roomId, date)` calls `GET {base}/rooms/:id/availability?date=...`.
+- The base URL is `http://localhost:3000`, from `environment.ts`.
+- It holds no business logic. Its comment says the Node API is the single source of truth and that `docs/DOMAIN.md` rules are not re-implemented here.
+- It returns typed `Observable`s and nothing else.
+
+**RoomAvailabilityComponent** owns UI state and display.
+- State: `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading`, `errorMessage`.
+- It subscribes to the service, handles errors, and formats slots into text.
+- The template binds the room `<select>` and the date `<input>` with `ngModel`. Both call `loadAvailability()` on change.
+
+The link between them is constructor injection (`RoomService` is `providedIn: 'root'`). The component calls the service methods and subscribes. The service never knows about the component.
+
+## 2. Page load to slots on screen
+
+1. The component is created and `ngOnInit` runs.
+2. `date` is set to today: `new Date().toISOString().slice(0,10)`. That is today's **UTC** date, not the local date.
+3. `listRooms()` sends `GET /rooms`. The backend returns `Room[]`, each with `{id, name, capacity, isActive}`.
+4. On success, `rooms` is filled and the template renders the `<option>`s.
+5. If the list is non-empty, `selectedRoomId = rooms[0].id` and `loadAvailability()` runs.
+   - On error, the page shows "Could not load rooms."
+   - If the list is empty, nothing more happens.
+6. `loadAvailability()` sets `loading = true` and clears `errorMessage`.
+7. It sends `GET /rooms/{id}/availability?date=YYYY-MM-DD`.
+8. The backend returns `{ roomId, date, free: [{startsAt, endsAt}, ...] }`.
+   - The timestamps are strings, apparently ISO-8601.
+   - That shape comes from the TypeScript interface only. The backend isn't in this repo, so I couldn't check it.
+9. On success, `freeIntervals = res.free` and `loading = false`. On error, the message is "Could not load availability."
+10. The template shows the `<ul>` only when `!loading && !errorMessage`.
+    - It renders one `<li>` per slot via `formatSlot()`.
+    - `formatSlot()` parses both timestamps with `new Date()`, takes `toISOString().slice(11,16)`, and returns e.g. `09:00–10:30 UTC`.
+    - If the array is empty, it shows "No free slots."
+11. Changing the room or date repeats from step 6.
+
+## 3. Where half-open intervals bite
+
+The backend treats intervals as half-open `[startsAt, endsAt)`. The start is included and the end is excluded. A booking that ends at 10:00 and one that starts at 10:00 do not conflict, so a free slot ending at 10:00 means 10:00 itself is **not** free.
+
+The frontend currently only formats, so it is safe today. Be careful at these spots:
+
+- **`formatSlot` (`ts:58-63`).** It shows `09:00–10:00`. A reader may take that as "free through 10:00 inclusive". If someone "fixes" the end by subtracting a minute, or adds `<=` logic, the display lies.
+- **Slicing to `HH:mm`.** `slice(11,16)` truncates seconds and milliseconds. An end of `10:00:30` would display as `10:00`, which hides the true boundary. It also assumes the strings are UTC `Z` timestamps. A non-UTC offset would be silently shifted by `toISOString()`.
+- **Adding client-side logic later.** Examples are merging adjacent slots, checking whether a user's chosen time fits a slot, disabling a booking button, and counting slots or durations. Use `start <= t && t < end`, never `<=` on the end. Merging should treat `a.endsAt === b.startsAt` as contiguous, not overlapping. The code comment says this logic stays server-side, and that is the right default.
+- **Date boundary (`ts:24` and the `date` param).** `date` defaults to the UTC day. A user in a UTC+7 timezone sees "today" as yesterday for part of the day. A slot ending exactly at midnight UTC (`24:00` of day N, which is `00:00` of day N+1) displays as `00:00 UTC` and looks like it is before its own start. The bug is in the display, and the backend answer is still correct.
+
+Wrong output here would not corrupt a booking. The backend still validates. But the user could see an off-by-one boundary, or a slot that looks bookable when it isn't (or the reverse), and then get a confusing rejection.
+
+I changed no files.

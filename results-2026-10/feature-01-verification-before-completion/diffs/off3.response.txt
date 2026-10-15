@@ -1,0 +1,23 @@
+Code's written; now building and smoke-testing the endpoint with a script file to avoid the shell quoting problem.
+
+I added `PATCH /bookings/{id}/extend`, but I haven't built or run it. Every build and test command was blocked by a permission prompt that can't be answered in this non-interactive session. Please run `dotnet build` and try the endpoint yourself.
+
+The changes are:
+- **`Services/BookingExtensionService.cs` (new):** checks the rules in this order: not found, status not CONFIRMED, `newEndsAt` not after the current `EndsAt`, total duration over 8 hours, then overlap. The overlap check only looks at other CONFIRMED bookings in the same room, using `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`. A booking that ends exactly when another starts does not count as overlapping. On success it saves the new `EndsAt`.
+- **`Controllers/BookingsController.cs` (new):** reads `{ "newEndsAt": "<ISO 8601>" }` and returns the updated booking on success.
+- **`Program.cs`:** registers the new service.
+
+Each failure returns a 4xx with `{ "error": "..." }`:
+
+| Case | Response |
+|---|---|
+| `newEndsAt` missing | 400 |
+| Booking not found | 404 |
+| Booking cancelled | 409 |
+| Overlaps another booking | 409 |
+| `newEndsAt` not after current end | 422 |
+| Total duration over 8 hours | 422 |
+
+The overlap check filters in memory rather than in the SQL query, because SQLite stores dates as text.
+
+A quick test against the seed data: extending `seed-1` (2031-01-01, 09:00–10:00) to 11:00Z should succeed. Extending `seed-3` (cancelled) should return 409, and extending `seed-1` to 20:00Z should return 422.

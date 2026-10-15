@@ -1,0 +1,9 @@
+Using Edit instead.
+
+I found two bugs, one behind each report, and fixed both. `npm test` passes 13 of 13.
+
+**Report 1: back-to-back meetings rejected.** `overlaps()` in `src/domain/booking.ts` used `<=` and `>=`. That treated two bookings that touch at 11:00 as overlapping. `docs/DOMAIN.md` defines the range as half-open, so I changed it to strict `<` and `>`.
+
+**Report 2: cancelled booking still blocks the slot.** `findBookingsForDay()` in `src/repositories/bookingRepository.ts` didn't filter on status. Its own comment says cancelled bookings are excluded, but the query didn't do it. That meant the conflict check counted cancelled bookings. The availability view did too, so a cancelled slot never showed as free. I added `status: "CONFIRMED"` to the query, which fixes both.
+
+I didn't add new tests for these two cases, and I haven't committed anything.

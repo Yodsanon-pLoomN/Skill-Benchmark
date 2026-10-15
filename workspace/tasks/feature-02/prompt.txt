@@ -1,0 +1,23 @@
+The front desk wants a quick way to see what's coming up across all rooms,
+instead of checking each room one at a time.
+
+Add:
+
+    GET /reports/upcoming-bookings?withinHours={n}&asOf={ISO 8601 timestamp, optional}
+
+Behaviour:
+
+1. Return every booking with `Status == "CONFIRMED"` whose `StartsAt` falls
+   in the next `withinHours` hours, i.e. in the half-open window
+   `[asOf, asOf + withinHours hours)`. `CANCELLED` bookings must never
+   appear in this report.
+2. `asOf` is optional and defaults to the current UTC time when omitted.
+   When provided, use it as the reference "now" instead (this lets the
+   report be checked against fixed data without waiting for real time to
+   pass).
+3. A booking that has already started before `asOf` (even if it's still
+   ongoing - `EndsAt` in the future) is not "upcoming" and must not appear.
+4. Sort the results by `StartsAt` ascending. Each result should include the
+   room's id and name, the user id, and the booking's `StartsAt`/`EndsAt`.
+
+`withinHours` defaults to 24 if not provided.

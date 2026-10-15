@@ -1,0 +1,4 @@
+Overlap scan now lives in one helper, `anyOverlap(bookings, range)`, in `src/services/bookingService.ts`. `createBooking` and the `checkAvailability` fast path both call it. I couldn't type-check or run tests: the `tsc --noEmit` call was blocked pending approval, so none of this has been compiled.
+
+- **Behaviour:** Both callers use the same `overlaps()` check from the domain module, which matches the half-open rule in `docs/DOMAIN.md`. Cancelled bookings (rule 2) were already filtered out in the repository query (`status: "CONFIRMED"` in `findBookingsForDay`), and I left that alone. The fast-path comment is reworded.
+- **Not unified:** The sweep that builds the free intervals is separate logic and stays as it was.

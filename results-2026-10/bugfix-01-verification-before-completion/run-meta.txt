@@ -1,0 +1,9 @@
+started_at=2026-10-11T14:50:32Z
+model=claude-sonnet-5-5
+claude_cli=2.1.296 (Claude Code)
+task_id=bugfix-01
+skill_name=verification-before-completion
+skill_type=file
+skill_arg=<project>/workspace/skills/verification-before-completion
+base_tag=bugfix-01-base
+base_tag_commit=c98bc8406846f22d7e8d8bca56e62e7fe9fa9e84

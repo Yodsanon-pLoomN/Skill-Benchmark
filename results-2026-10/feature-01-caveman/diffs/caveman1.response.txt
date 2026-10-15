@@ -1,0 +1,15 @@
+I added `PATCH /bookings/{id}/extend` in `Controllers/BookingsController.cs`, but I haven't compiled or run it. Both attempts to run `dotnet build` were blocked pending approval. Please run `dotnet build` yourself or approve it.
+
+On success it saves the new `EndsAt` and returns the updated booking. Overlap is checked in memory against the room's other CONFIRMED bookings, because SQLite stores dates as text.
+
+| Case | Response |
+|---|---|
+| `newEndsAt` missing | 400 |
+| Booking not found | 404 |
+| Status is not CONFIRMED | 409 |
+| `newEndsAt` is not after the current `EndsAt` | 400 |
+| Total duration from `StartsAt` is more than 8 hours | 400 |
+| Extended range overlaps another CONFIRMED booking in the same room (half-open: `StartsAt < o.EndsAt && newEndsAt > o.StartsAt`) | 409 |
+
+- **Status codes:** I picked the specific 4xx codes myself, since you only asked for 4xx on each violation. Say so if you want different ones, such as 422.
+- **Time zones:** `newEndsAt` is converted to UTC before it's compared and stored, which assumes the existing `StartsAt` and `EndsAt` values are UTC.

@@ -1,0 +1,82 @@
+diff --git a/Controllers/BookingsController.cs b/Controllers/BookingsController.cs
+new file mode 100644
+index 0000000..b94ac74
+--- /dev/null
++++ b/Controllers/BookingsController.cs
+@@ -0,0 +1,76 @@
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++using ReportsApi.Data;
++using ReportsApi.Models;
++
++namespace ReportsApi.Controllers;
++
++public record ExtendBookingRequest(DateTimeOffset? NewEndsAt);
++
++[ApiController]
++[Route("bookings")]
++public class BookingsController : ControllerBase
++{
++    private static readonly TimeSpan MaxDuration = TimeSpan.FromHours(8);
++
++    private readonly ReportsDbContext _db;
++
++    public BookingsController(ReportsDbContext db)
++    {
++        _db = db;
++    }
++
++    [HttpPatch("{id}/extend")]
++    public async Task<ActionResult<Booking>> Extend(string id, [FromBody] ExtendBookingRequest request)
++    {
++        if (request.NewEndsAt is null)
++        {
++            return Problem("newEndsAt is required and must be an ISO 8601 timestamp.", statusCode: StatusCodes.Status400BadRequest);
++        }
++
++        var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id);
++        if (booking is null)
++        {
++            return Problem($"Booking '{id}' not found.", statusCode: StatusCodes.Status404NotFound);
++        }
++
++        if (booking.Status != "CONFIRMED")
++        {
++            return Problem("Only CONFIRMED bookings can be extended.", statusCode: StatusCodes.Status409Conflict);
++        }
++
++        // Stored timestamps are UTC; SQLite hands them back with Kind=Unspecified.
++        var startsAt = AsUtc(booking.StartsAt);
++        var endsAt = AsUtc(booking.EndsAt);
++        var newEndsAt = request.NewEndsAt.Value.UtcDateTime;
++
++        if (newEndsAt <= endsAt)
++        {
++            return Problem("newEndsAt must be strictly after the booking's current EndsAt.", statusCode: StatusCodes.Status400BadRequest);
++        }
++
++        if (newEndsAt - startsAt > MaxDuration)
++        {
++            return Problem("Extended booking would exceed the 8 hour maximum duration.", statusCode: StatusCodes.Status400BadRequest);
++        }
++
++        // Compared in memory: SQLite's EF provider can't reliably translate DateTime comparisons.
++        var others = await _db.Bookings
++            .Where(b => b.RoomId == booking.RoomId && b.Id != booking.Id && b.Status == "CONFIRMED")
++            .ToListAsync();
++
++        var conflict = others.Any(b => AsUtc(b.StartsAt) < newEndsAt && AsUtc(b.EndsAt) > startsAt);
++        if (conflict)
++        {
++            return Problem("Extended booking overlaps another CONFIRMED booking in the same room.", statusCode: StatusCodes.Status409Conflict);
++        }
++
++        booking.EndsAt = newEndsAt;
++        await _db.SaveChangesAsync();
++
++        return Ok(booking);
++    }
++
++    private static DateTime AsUtc(DateTime value) =>
++        value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
++}

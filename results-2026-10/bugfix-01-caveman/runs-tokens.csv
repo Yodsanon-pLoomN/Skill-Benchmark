@@ -1,0 +1,7 @@
+run_code,task_id,skill_name,condition,order,session_id,input,output,cache_read,cache_w5,cache_w1h,cost_usd,cost_cold_usd,cache_hit,note
+off1,bugfix-01,caveman,off,1,b2e62749-2578-4442-9189-220ae4dac86c,12,1787,195922,0,6779,0.084194,0.423296,0.9665,
+caveman1,bugfix-01,caveman,skill,2,953b0945-73d1-45c3-8653-bf236b17f1e8,12,1349,190022,0,20431,0.133242,0.434420,0.9029,
+off2,bugfix-01,caveman,off,3,aa16a0af-c7e3-44f1-91d9-03f573c7b3a0,14,1478,235920,0,7331,0.091316,0.501310,0.9698,
+caveman2,bugfix-01,caveman,skill,4,cbd4ff91-124d-4de1-88f3-42c5b2d83642,10,1363,151811,0,20427,0.125720,0.358126,0.8814,
+off3,bugfix-01,caveman,off,5,3c282d98-5aab-41c5-87f5-a96dfc5a75de,10,1381,164523,0,7576,0.077039,0.358028,0.9559,
+caveman3,bugfix-01,caveman,skill,6,ef32505f-1e94-4cd0-9473-d54a646499d3,10,1462,148879,0,19182,0.121144,0.350762,0.8858,

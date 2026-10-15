@@ -1,0 +1,14 @@
+Two bug reports came in from the office admin team about the meeting room booking service.
+
+Report 1
+"I finish a meeting at 11:00 and someone else wants the same room from 11:00.
+The system says the room is already booked. It shouldn't - they don't actually
+overlap. We keep having to shift the second meeting to 11:15 to get it to save."
+
+Report 2
+"Somebody cancelled their 2pm booking last week and I still can't book that
+room at 2pm. It keeps saying the slot is taken, but the booking is right there
+in the list marked as cancelled."
+
+Please investigate both reports and fix what is actually wrong. The expected
+behaviour of the system is written down in docs/DOMAIN.md.

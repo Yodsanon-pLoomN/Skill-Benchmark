@@ -1,0 +1,7 @@
+run_code,task_id,skill_name,condition,order,session_id
+off1,explain-01,caveman,off,1,b8cc20d0-94b3-431b-bdc7-14c2f6d8a919
+caveman1,explain-01,caveman,skill,2,42a63e01-b931-46e3-a308-218226125859
+off2,explain-01,caveman,off,3,6a863123-c0b4-4868-804e-f3a960fe926d
+caveman2,explain-01,caveman,skill,4,d5217bf2-a9b5-4a6c-82ee-9e1ae121e7eb
+off3,explain-01,caveman,off,5,f1d1e8a2-aaf7-47b1-8a97-2dcebd93a002
+caveman3,explain-01,caveman,skill,6,f57e879f-6793-4df4-a006-b520bc2b108a

@@ -1,0 +1,8 @@
+Using Edit instead.
+
+I found two bugs in the booking service and fixed both. After the changes, `npm test` shows 13 of 13 tests passing.
+
+1. **Report 1 (11:00 back-to-back bookings rejected):** `overlaps()` in `src/domain/booking.ts` used `<=` and `>=`, so bookings that only touch at an endpoint counted as overlapping. `docs/DOMAIN.md` says the interval is half-open, so I changed it to strict `<` and `>`.
+2. **Report 2 (cancelled 2pm booking still blocks the slot):** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter on status. Cancelled bookings were therefore treated as conflicts and also affected availability. I added `status: "CONFIRMED"` to the query. That matches rule 2: cancelled bookings never conflict with anything.
+
+I didn't add regression tests for the two reports, and I didn't check that they fail with the fixes reverted. The existing tests passing is the only evidence I have. The changes are uncommitted, a one-line change in each of the two files.

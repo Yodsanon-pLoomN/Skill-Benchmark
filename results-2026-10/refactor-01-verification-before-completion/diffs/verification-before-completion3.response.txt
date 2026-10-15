@@ -1,0 +1,11 @@
+Both places do the same thing: `bookings.some(b => overlaps(b, range))`. I'll pull that into one helper.
+
+I merged the duplicated overlap-scanning logic into one helper in `src/services/bookingService.ts`. All 13 tests pass.
+
+The new helper is `hasOverlap(bookings, range)`, which is `bookings.some(b => overlaps(b, range))`. Both places now call it:
+- **`createBooking`:** the conflict check calls `hasOverlap(sameDay, range)`.
+- **`checkAvailability`:** the "free all day" fast path calls `!hasOverlap(bookings, dayWindow)`. I also removed the comment that said the logic was copied from `createBooking`.
+
+Behaviour is unchanged. Both copies used the same `overlaps` check from the domain code, so the helper does exactly what each did before. I didn't touch the interval sweep in `checkAvailability`.
+
+I only ran the existing test suite and didn't check each case in `docs/DOMAIN.md` by hand.

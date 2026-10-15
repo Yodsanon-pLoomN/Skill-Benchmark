@@ -1,0 +1,64 @@
+diff --git a/Controllers/BookingsController.cs b/Controllers/BookingsController.cs
+new file mode 100644
+index 0000000..8afc633
+--- /dev/null
++++ b/Controllers/BookingsController.cs
+@@ -0,0 +1,58 @@
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++using ReportsApi.Data;
++using ReportsApi.Models;
++
++namespace ReportsApi.Controllers;
++
++public record ExtendBookingRequest(DateTimeOffset? NewEndsAt);
++
++[ApiController]
++[Route("bookings")]
++public class BookingsController : ControllerBase
++{
++    private static readonly TimeSpan MaxDuration = TimeSpan.FromHours(8);
++
++    private readonly ReportsDbContext _db;
++
++    public BookingsController(ReportsDbContext db)
++    {
++        _db = db;
++    }
++
++    [HttpPatch("{id}/extend")]
++    public async Task<ActionResult<Booking>> Extend(string id, [FromBody] ExtendBookingRequest request)
++    {
++        if (request?.NewEndsAt is null)
++            return BadRequest(new { error = "newEndsAt is required (ISO 8601 timestamp)." });
++
++        var newEndsAt = DateTime.SpecifyKind(request.NewEndsAt.Value.UtcDateTime, DateTimeKind.Utc);
++
++        var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id);
++        if (booking is null)
++            return NotFound(new { error = $"Booking '{id}' not found." });
++
++        if (booking.Status != "CONFIRMED")
++            return Conflict(new { error = "Only CONFIRMED bookings can be extended." });
++
++        if (newEndsAt <= booking.EndsAt)
++            return BadRequest(new { error = "newEndsAt must be strictly after the current EndsAt." });
++
++        if (newEndsAt - booking.StartsAt > MaxDuration)
++            return BadRequest(new { error = "Total booking duration must not exceed 8 hours." });
++
++        // Filter by time in memory: SQLite stores DateTime as text, so keep comparisons in .NET.
++        var others = await _db.Bookings
++            .Where(b => b.RoomId == booking.RoomId && b.Id != booking.Id && b.Status == "CONFIRMED")
++            .ToListAsync();
++
++        var conflict = others.Any(b => booking.StartsAt < b.EndsAt && newEndsAt > b.StartsAt);
++        if (conflict)
++            return Conflict(new { error = "Extended range overlaps another CONFIRMED booking in this room." });
++
++        booking.EndsAt = newEndsAt;
++        await _db.SaveChangesAsync();
++
++        return Ok(booking);
++    }
++}

@@ -1,0 +1,18 @@
+Writing the code is done. I'm now building the project and testing the endpoint, after a shell-syntax error on my first attempt.
+
+I couldn't build or run the endpoint. The shell blocked both `dotnet build` attempts, one through Bash and one through PowerShell, with "requires approval" errors. Nothing I wrote has been compiled or tested.
+
+**What I added** (in `sample-project-reports-api`):
+- `Services/BookingExtensionService.cs` holds the rules and the save. The checks run in this order:
+  1. The booking must exist, otherwise 404.
+  2. `Status` must be `CONFIRMED`, otherwise 409.
+  3. `newEndsAt` must be strictly after the current `EndsAt`, otherwise 400.
+  4. `newEndsAt` minus `StartsAt` must be at most 8 hours, otherwise 400.
+  5. The extended range must not overlap another `CONFIRMED` booking in the same room, otherwise 409. This uses `StartsAt < other.EndsAt && newEndsAt > other.StartsAt`, so back-to-back bookings are allowed. The booking being extended is excluded from the check.
+  6. On success it saves the new `EndsAt` and returns the updated booking with 200.
+- `Controllers/BookingsController.cs` exposes `PATCH /bookings/{id}/extend`. A missing `newEndsAt` returns 400, and a timestamp with no offset is treated as UTC to match the stored data.
+- `Program.cs` registers the new service.
+
+I run the overlap comparison in memory, not in the SQL query, because SQLite stores `DateTime` as text.
+
+To check it, run `dotnet build`, then start the app and send a few PATCH requests against the seed data. Booking `seed-1` is on 2031-01-01, 09:00–10:00 in `room-a`, and `seed-3` is cancelled. If you approve the shell commands, I can run these checks myself.

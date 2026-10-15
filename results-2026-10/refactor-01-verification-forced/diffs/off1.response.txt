@@ -1,0 +1,9 @@
+I refactored the duplicated overlap check in `src/services/bookingService.ts`, but I haven't run the tests or the type-check. Every command I tried to run them was blocked pending approval.
+
+- **New helper:** `overlapsAny(bookings, range)` is a small private function that returns true if any booking in the list overlaps the range. It uses the existing `overlaps()` from the domain module.
+- **`createBooking`:** it now calls `overlapsAny(sameDay, range)` for its conflict check.
+- **`checkAvailability`:** the "fast path" now calls `overlapsAny(bookings, dayWindow)`. I also removed the comment saying the logic was copied from `createBooking`.
+
+Both call sites still use the bookings from `findBookingsForDay` and the same `overlaps()` predicate. I did not touch the repository layer, so CANCELLED bookings are excluded exactly as before, and the error type and day-boundary handling are unchanged.
+
+To check it yourself, run `npx tsc --noEmit` and `npm test` in `workspace/sample-project`. The baseline is 13 passing tests.

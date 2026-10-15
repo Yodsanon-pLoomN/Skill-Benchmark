@@ -1,0 +1,22 @@
+Build check is waiting on approval; I'll retry it as a single plain command.
+
+I added `PATCH /bookings/{id}/extend` in `Controllers/BookingsController.cs`, but I haven't compiled or run it. Every `dotnet build` attempt needed an approval I didn't get. Please run `dotnet build` yourself before relying on it.
+
+Here is how each case is handled:
+
+| Case | Response |
+|---|---|
+| `newEndsAt` missing or not a valid ISO 8601 timestamp | 400 |
+| Booking id not found | 404 |
+| Booking is not `CONFIRMED` (e.g. cancelled) | 409 |
+| `newEndsAt` is not strictly after the current `EndsAt` | 400 |
+| Total duration from `StartsAt` to `newEndsAt` is over 8 hours | 400 |
+| Extended range overlaps another `CONFIRMED` booking in the same room | 409 |
+| Success | 200 with the updated booking, new `EndsAt` saved |
+
+The overlap check uses `StartsAt < other.EndsAt && newEndsAt > other.StartsAt`, so a booking that ends exactly when another starts is not an overlap. It skips the booking being extended and ignores cancelled bookings.
+
+- **UTC handling:** all times are treated as UTC, because SQLite hands back `DateTime` values with an unspecified kind. A `newEndsAt` with an offset is converted to UTC first.
+- **Overlap comparison:** I load the room's other confirmed bookings and compare the times in C#, rather than translating the comparison to SQL. That keeps it independent of how SQLite stores dates, but it reads every confirmed booking in the room.
+
+I haven't added tests.

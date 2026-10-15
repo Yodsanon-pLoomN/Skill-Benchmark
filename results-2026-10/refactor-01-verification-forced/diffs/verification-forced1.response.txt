@@ -1,0 +1,12 @@
+Baseline is 13/13 passing. Now the refactor: one helper used by both places.
+
+Now fresh verification: tests, typecheck, and the diff.
+
+I merged the two overlap scans into one helper in `src/services/bookingService.ts`. The tests pass, but I couldn't run the typecheck.
+
+- **The change:** a new private `hasOverlap(bookings, range)` now holds the scan. `createBooking` calls it for the conflict check. `checkAvailability` calls it for the full-day fast path, and I removed the "copied rather than reused" comment there. Only that file changed (+8/−6).
+- **Tests:** a fresh `npm test` run after the edit gave 13/13 passing across 2 files. The baseline before the edit was also 13/13.
+- **Typecheck not run:** the `npx tsc --noEmit` call was blocked pending approval. Vitest doesn't typecheck, so a type error would not show up in the test run. The change is small and reuses the existing `Booking` and `TimeRange` types, but it is unverified.
+- **DOMAIN.md not checked line by line:** I didn't compare each rule against the code. The only evidence that behavior is unchanged is the 13 passing tests. The logic is the same expression, `bookings.some(existing => overlaps(existing, range))`, moved into the helper.
+
+If you want the typecheck confirmed, approve `npx tsc --noEmit` and I'll run it.

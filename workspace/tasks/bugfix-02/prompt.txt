@@ -1,0 +1,17 @@
+Two more bug reports came in about the meeting room booking service.
+
+Report 1
+"I tried to book the Alpha room for exactly 8 hours, 9am to 5pm, for an
+all-day workshop. The system rejected it and said the booking is too long.
+8 hours is exactly the limit we were told is allowed - it shouldn't be
+rejected."
+
+Report 2
+"Our booking form is slow to submit. I picked a start time of 2:00pm, but
+by the time the request actually went through it was already 2:04pm - the
+end time I picked (3:00pm) was still in the future. The system accepted
+the booking anyway with a start time that had already passed. I thought
+bookings weren't allowed to start in the past no matter what."
+
+Please investigate both reports and fix what is actually wrong. The expected
+behaviour of the system is written down in docs/DOMAIN.md.

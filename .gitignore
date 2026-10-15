@@ -1,0 +1,5 @@
+workspace/results/
+workspace/skills/*
+!workspace/skills/README.md
+__pycache__/
+*.pyc

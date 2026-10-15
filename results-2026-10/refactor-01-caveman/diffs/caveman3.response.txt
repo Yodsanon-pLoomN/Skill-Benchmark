@@ -1,0 +1,8 @@
+Repo filters CONFIRMED. Extract shared helper.
+
+Refactor done in `src/services/bookingService.ts`. I haven't run the type check or tests. The shell command to run them needed approval and didn't run.
+
+- **Change:** the overlap scan now lives in one helper, `hasOverlap(bookings, range)`. `createBooking` and the full-day fast path in `checkAvailability` both call it.
+- **Behaviour:** unchanged. Both copies already used `overlaps()` from `domain/booking.js`. `findBookingsForDay` already returns only CONFIRMED bookings, so cancelled ones never reach the helper (rule 2).
+
+Run `npx tsc --noEmit` and `npm test` to confirm.

@@ -1,0 +1,18 @@
+Two more bug reports came in about the meeting room booking service.
+
+Report 1
+"We marked the East conference room as inactive last week because it's
+being renovated - the room list even shows it greyed out as inactive. But
+people are still able to book it through the API, and someone did, for
+this Friday. The room isn't usable, this shouldn't be possible."
+
+Report 2
+"I clicked cancel on a booking, then a moment later realised I'd clicked
+the wrong row and clicked cancel again on the same booking to double check
+it went through. The second click made the whole app show an error saying
+the booking wasn't found - it is found, it's right there in the list, just
+already cancelled. Now I'm not sure if it's actually cancelled or if
+something broke."
+
+Please investigate both reports and fix what is actually wrong. The expected
+behaviour of the system is written down in docs/DOMAIN.md.

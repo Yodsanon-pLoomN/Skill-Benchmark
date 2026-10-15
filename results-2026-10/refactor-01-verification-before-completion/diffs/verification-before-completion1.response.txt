@@ -1,0 +1,8 @@
+I refactored the overlap check into one shared helper, but I haven't run the tests or the type check. Every attempt to run `tsc` and `npm test` (Bash and PowerShell) was blocked pending approval, so the refactor is unverified.
+
+All changes are in `src/services/bookingService.ts`:
+- **Shared helper:** I added a private `hasOverlap(bookings, range)` function. It wraps `bookings.some(b => overlaps(b, range))`.
+- **`createBooking`:** it now calls `hasOverlap(sameDay, range)` instead of its own inline loop.
+- **`checkAvailability`:** its fast-path check now calls `hasOverlap(bookings, dayWindow)`. I also removed the comment saying the logic was copied from `createBooking`.
+
+Both call sites run the same `overlaps` check on the same data as before, so behaviour should be unchanged. To confirm, run `npx tsc --noEmit` and `npm test` in `workspace/sample-project`. The project notes say 13 tests pass on the clean base. If you approve those commands, I'll run them.

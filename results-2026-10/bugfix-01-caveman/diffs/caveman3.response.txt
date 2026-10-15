@@ -1,0 +1,6 @@
+Both bugs fixed. I haven't run tests or the type-check — the shell command was blocked pending approval.
+
+- **Report 1 (11:00 back-to-back rejected):** `overlaps` in `src/domain/booking.ts` used `<=` and `>=`, so ranges that only touch at 11:00 counted as overlapping. DOMAIN.md says ranges are half-open, so I changed it to strict `<` and `>`.
+- **Report 2 (cancelled 2pm slot still blocks):** `findBookingsForDay` in `src/repositories/bookingRepository.ts` returned bookings of every status. Its doc comment says cancelled ones are excluded, but the query had no filter. I added `status: "CONFIRMED"`. The conflict check and the availability endpoint both use this query, so both are fixed.
+
+Run `npm test` and `npx tsc --noEmit` to confirm. I haven't committed anything.

@@ -1,0 +1,40 @@
+I read `room.service.ts`, the component `.ts`, its `.html` template, and `environment.ts` for the base URL. I did not run the app, and I changed no files. I also couldn't read the backend repo (`sample-project`, including `docs/DOMAIN.md`), because this session has no permission to read outside the webapp folder. Anything I say about the backend's response comes from the TypeScript interfaces and code comments, not from a live response.
+
+## 1. Who does what
+
+**`RoomService`** (`room.service.ts`) only fetches data. It's a root-provided singleton that wraps `HttpClient` and has two methods:
+- `listRooms()` calls `GET {baseUrl}/rooms` and returns `Observable<Room[]>`.
+- `getAvailability(roomId, date)` calls `GET {baseUrl}/rooms/{roomId}/availability?date=...` and returns `Observable<AvailabilityResponse>`.
+
+The base URL is `http://localhost:3000`, which is the Node API. The service holds no state and no business rules. Its own comment says the backend is the single source of truth and it only passes through what the backend computed.
+
+**`RoomAvailabilityComponent`** owns the UI and its state:
+- **State:** `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading` and `errorMessage`.
+- **Behaviour:** it decides when to call the service, handles success and error, and formats each slot as text.
+
+The two talk through plain injection. The component gets the service in its constructor, calls a method, and `subscribe`s to the returned Observable. The service knows nothing about the component.
+
+## 2. From page load to slots on screen
+
+1. **Setup.** `ngOnInit` sets `date` to today's date as `YYYY-MM-DD`, taken from `new Date().toISOString().slice(0, 10)`. That date is in UTC.
+2. **Load rooms.** It calls `listRooms()` and subscribes. If the call fails, `errorMessage` becomes "Could not load rooms." and nothing more happens.
+3. **Pick a room.** On success it stores `rooms`. If the list isn't empty, it selects `rooms[0].id` and calls `loadAvailability()`. If the list is empty, no availability call is made.
+4. **Load availability.** `loadAvailability()` returns early if there's no room or date. Otherwise it sets `loading = true`, clears the error, and calls `getAvailability(selectedRoomId, date)`.
+5. **What the backend sends back.** Going by the `AvailabilityResponse` type, it's `{ roomId, date, free: [{ startsAt, endsAt }, ...] }`. The `startsAt` and `endsAt` values are strings, presumably ISO timestamps. The component comment says they are half-open `[startsAt, endsAt)` ranges. The server has already worked out the free gaps, so the frontend gets no bookings.
+6. **Store the result.** On success, `freeIntervals = res.free` and `loading = false`. On error, the message is "Could not load availability." and `loading = false`.
+7. **Render.** The template shows "Loading…" or the error when set. When neither is set, it loops over `freeIntervals` and prints `formatSlot(slot)` for each. If the array is empty, it shows "No free slots."
+8. **Formatting.** `formatSlot` parses both strings with `new Date(...)`, takes characters 11–16 of `toISOString()` (`HH:mm`), and returns something like `09:00–10:30 UTC`.
+9. **Later changes.** Changing the room or date `<input>` fires `ngModelChange`, which calls `loadAvailability()` again.
+
+## 3. Where the half-open rule matters here
+
+The comment in the code says the frontend never compares or merges ranges, which keeps the risk low. The places to be careful are these:
+
+- **Display of `endsAt`.** In `[start, end)` the end instant is not free. The slot `09:00–10:30` means free up to, but not including, 10:30, so a booking starting at 10:30 is fine. Showing the end as inclusive, or "fixing" it by subtracting a minute, would mislead users.
+- **Adding any client-side logic.** Merging adjacent slots, filtering out short slots, comparing against a user's chosen time, or checking whether a new booking fits are all places where `<=` versus `<` would be a bug. The adjacent slots `[9,10)` and `[10,11)` touch but don't overlap, so treating them as overlapping would drop or split valid slots.
+- **UTC and date boundaries.** `formatSlot` always prints UTC. The `date` default is also the UTC date, and the `<input type="date">` is a plain date string. A user in a non-UTC timezone can see "today" as the wrong day. A slot ending at exactly `00:00` UTC would show as `…–00:00 UTC`, which can look like the start of the day rather than the end. Converting to local time later could make this worse.
+- **Parsing.** `new Date(string)` is only safe if the backend always sends a timezone designator (`Z` or an offset). A string without one is parsed as local time, which shifts every slot by the UTC offset. I couldn't confirm the backend's format, so check it in `docs/DOMAIN.md` or a real response.
+
+Any of these would show a wrong answer even though the backend is correct. You could show a slot as bookable when it isn't, or hide one that is, because the display is the only place a human sees the backend's boundaries.
+
+I didn't run `ng build` or any tests, since the task was read-only explanation. The explanation is based on source reading only.

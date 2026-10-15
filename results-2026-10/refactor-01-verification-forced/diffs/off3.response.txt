@@ -1,0 +1,9 @@
+I've finished the refactor edits. I'm now trying to run the tests, but the shell keeps asking for approval on `npm test`.
+
+I refactored the duplicated overlap check in `src/services/bookingService.ts`, and all 13 tests pass. I didn't get `tsc --noEmit` to run, because the shell asked for approval on the chained command. Vitest compiled the file without errors.
+
+- **Shared helper:** I added `overlapsAny(bookings, range)`, which wraps `bookings.some((b) => overlaps(b, range))` using the existing domain `overlaps`.
+- **`createBooking`:** the conflict check now calls `overlapsAny(sameDay, range)`.
+- **`checkAvailability`:** the fast-path check now calls `overlapsAny(bookings, dayWindow)`. I also removed the stale comment saying the code was copied from `createBooking`.
+
+Behaviour is unchanged: `overlaps` and `findBookingsForDay` are untouched, so the `DOMAIN.md` overlap and CANCELLED rules apply exactly as before. I haven't committed anything.

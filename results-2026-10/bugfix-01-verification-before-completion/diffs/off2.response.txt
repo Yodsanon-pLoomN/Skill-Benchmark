@@ -1,0 +1,9 @@
+I'll use the Edit tool instead.
+
+I found and fixed two bugs, one for each report. All 13 tests pass. I haven't committed anything.
+
+**Report 1 (back-to-back bookings rejected).** `overlaps()` in `src/domain/booking.ts` compared with `<=` and `>=`, so a meeting ending at 11:00 counted as overlapping one starting at 11:00. `docs/DOMAIN.md` says ranges are half-open, so the comparison must be strict. It now reads `a.startsAt < b.endsAt && a.endsAt > b.startsAt`.
+
+**Report 2 (cancelled booking still blocks the slot).** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter by status. Its doc comment says it excludes cancelled bookings, but the query never did. Both the conflict check and the availability view call it, so cancelled bookings blocked new ones and also showed up as busy time. I added `status: "CONFIRMED"` to the query, which fixes both.
+
+I didn't add tests for the two cases, so nothing in the suite would catch these bugs coming back. Tell me if you want regression tests for them.

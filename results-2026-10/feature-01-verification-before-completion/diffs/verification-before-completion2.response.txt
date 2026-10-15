@@ -1,0 +1,20 @@
+I added `PATCH /bookings/{id}/extend`, but I couldn't build or run it. Both shell commands I tried (`dotnet build`) were blocked pending approval. Please run `dotnet build` and try the endpoint before relying on it.
+
+The code is in a new file, `Controllers/BookingsController.cs`. It reads `newEndsAt` as a timestamp with offset and converts it to UTC.
+
+The endpoint checks the rules in this order and returns:
+
+| Violation | Response |
+|---|---|
+| `newEndsAt` missing | 400 |
+| Booking not found | 404 |
+| Booking not `CONFIRMED` (rule 1) | 409 |
+| `newEndsAt <= EndsAt` (rule 2) | 400 |
+| Total duration from `StartsAt` over 8 hours (rule 3) | 400 |
+| Overlap with another `CONFIRMED` booking in the same room (rule 4) | 409 |
+
+The overlap check uses `StartsAt < newEndsAt && EndsAt > booking.StartsAt` and excludes the booking itself. A booking ending exactly when another starts is not treated as overlapping. On success it saves the new `EndsAt` and returns the updated booking with 200.
+
+The 404 and the status codes for rules 1 and 4 (409) were my choice, since the spec only said "4xx". Say if you want 400 or 422 for any of them.
+
+I didn't add tests.

@@ -1,0 +1,24 @@
+Building to check the new controller compiles.
+
+I added `PATCH /bookings/{id}/extend` in `Controllers/BookingsController.cs`, but I haven't compiled or run it. Both `dotnet build` attempts were blocked by a permission prompt, and this session can't answer one. Please run `dotnet build` yourself before relying on it.
+
+Error responses:
+
+| Case | Response |
+|---|---|
+| `newEndsAt` missing or not a valid timestamp | 400 |
+| Booking id not found | 404 |
+| Booking not `CONFIRMED` | 409 |
+| `newEndsAt` not strictly after the current `EndsAt` | 400 |
+| Total duration from `StartsAt` to `newEndsAt` over 8 hours (exactly 8 hours is allowed) | 400 |
+| Overlap with another `CONFIRMED` booking in the same room | 409 |
+
+The overlap check uses your formula `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`, so a booking that ends exactly when another starts is not an overlap. It excludes the booking being extended. A cancelled booking in the same room doesn't block an extension.
+
+On success it saves the new `EndsAt` and returns the updated booking with 200.
+
+- **Time zones:** timestamps are treated as UTC. A `newEndsAt` with no offset is read as UTC.
+- **In-memory comparison:** the overlap and duration comparisons run in memory on the room's confirmed bookings. SQLite stores dates as text and returns them without a time zone, so I avoided comparing them in the database query.
+- **Rule order:** I put the cancelled check before the shrink and duration checks, so a cancelled booking always gets 409 whatever `newEndsAt` is.
+
+I didn't add tests.

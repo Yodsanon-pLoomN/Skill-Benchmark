@@ -1,0 +1,7 @@
+I found and fixed both bugs, and all 13 tests pass.
+
+**Report 1 (back-to-back bookings rejected):** `overlaps()` in `src/domain/booking.ts` used `<=` and `>=`, so ranges that only touch at 11:00 counted as overlapping. `docs/DOMAIN.md` defines the interval as half-open, so I changed it to strict `<` and `>`.
+
+**Report 2 (cancelled booking still blocks the slot):** `findBookingsForDay()` in `src/repositories/bookingRepository.ts` returned bookings of every status. Its own comment said cancelled ones were excluded, but the filter was missing. Both the conflict check and the availability view use that query. I added `status: "CONFIRMED"` to it, which fixes both.
+
+I didn't add new tests for these two cases, so the existing suite passing doesn't prove them directly.

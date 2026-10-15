@@ -1,0 +1,21 @@
+UTC stored. Write controller.
+
+Build not run: the sandbox needs approval for `dotnet build`, and I didn't get it. The code is written but has not been compiled or tested.
+
+I added `Controllers/BookingsController.cs` with `PATCH /bookings/{id}/extend`. Body is `{ "newEndsAt": "<ISO 8601>" }`. The timestamp is converted to UTC, since the existing data is stored as UTC.
+
+| Case | Response |
+|---|---|
+| `newEndsAt` missing or not a valid timestamp | 400 |
+| Booking not found | 404 |
+| Status is not `CONFIRMED` (e.g. cancelled) | 409 |
+| `newEndsAt` is not strictly after the current `EndsAt` | 400 |
+| Total duration from `StartsAt` to `newEndsAt` exceeds 8 hours | 400 |
+| Overlaps another `CONFIRMED` booking in the same room | 409 |
+| Success | 200 with the updated booking, `EndsAt` saved |
+
+- **Overlap check:** it uses `booking.StartsAt < b.EndsAt && newEndsAt > b.StartsAt` and excludes the booking itself. A booking ending exactly when another starts is not a conflict.
+- **In-memory filtering:** the time comparison runs in .NET, not in the SQLite query, because SQLite stores `DateTime` as text. It loads the room's `CONFIRMED` bookings first, which is fine at this scale.
+- **Status codes:** the spec only said "4xx", so 400 vs 409 is my choice. Say if you want different codes.
+
+Run `dotnet build` to confirm it compiles.

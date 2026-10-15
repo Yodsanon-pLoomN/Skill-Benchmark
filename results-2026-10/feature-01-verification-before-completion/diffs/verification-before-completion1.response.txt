@@ -1,0 +1,21 @@
+I've added the endpoint but haven't built or run it, because both build attempts were blocked for approval. I'm retrying the build in a simpler form.
+
+I added `PATCH /bookings/{id}/extend` in the new `Controllers/BookingsController.cs`. I couldn't build or run it, because every `dotnet build` attempt was blocked waiting for approval. Please run `dotnet build` yourself and send me any errors.
+
+The endpoint takes `{ "newEndsAt": "<ISO 8601>" }`, checks the rules in this order, then saves the new `EndsAt` and returns the updated booking:
+
+| Condition | Response |
+|---|---|
+| `newEndsAt` missing | 400 |
+| Booking id not found | 404 |
+| Status is not `CONFIRMED` | 409 |
+| `newEndsAt` is not after the current `EndsAt` | 400 |
+| Total duration from `StartsAt` is over 8 hours | 400 |
+| Extended range overlaps another `CONFIRMED` booking in the same room | 409 |
+
+- **Overlap:** The check uses `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`, so a booking that ends exactly when another starts is allowed. It skips the booking being extended.
+- **Timestamps:** `newEndsAt` is read as a timestamp with offset and converted to UTC, so values like `...Z` or `+07:00` compare correctly with the stored UTC times.
+- **In-memory comparison:** The overlap comparison runs in memory, not in SQL, because SQLite stores `DateTime` as text. That is fine at this size but would need revisiting for a large number of bookings per room.
+- **Status codes:** The brief only asked for "an appropriate 4xx", so I chose 409 for state conflicts and 400 for bad input. Change them if the rest of your system uses different ones.
+
+I didn't add tests, because the project has no test setup.

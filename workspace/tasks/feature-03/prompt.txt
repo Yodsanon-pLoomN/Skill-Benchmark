@@ -1,0 +1,19 @@
+GET /reports/room-usage already returns a summary row per room (confirmed
+booking count and total booked hours). The front desk now also wants to
+drill into a single room and see its longest booking.
+
+Add:
+
+    GET /reports/room-usage/{roomId}
+
+Behaviour:
+
+1. If no room exists with that id, return 404.
+2. Otherwise return, for that room: its id and name, how many `CONFIRMED`
+   bookings it has, the total booked hours across those `CONFIRMED`
+   bookings, and the duration (in hours) of its single longest `CONFIRMED`
+   booking.
+3. `CANCELLED` bookings must not be counted anywhere in this response.
+4. A room that exists but has zero `CONFIRMED` bookings must return a
+   normal response with count 0, total hours 0, and longest-booking hours
+   0 - not an error.

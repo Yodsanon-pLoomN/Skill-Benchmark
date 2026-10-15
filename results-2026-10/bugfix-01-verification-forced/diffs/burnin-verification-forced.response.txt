@@ -1,0 +1,9 @@
+Using the Edit tool instead.
+
+I found two bugs, one behind each report, and fixed both. `npm test` now passes 13/13 (it was 3 failing at the base tag, per the notes).
+
+**Report 1: back-to-back bookings rejected.** In `src/domain/booking.ts`, `overlaps()` used `<=` and `>=`, which treats ranges that touch at a single instant as overlapping. `docs/DOMAIN.md` says bookings are half-open `[start, end)` with strict comparisons. It's now `a.startsAt < b.endsAt && a.endsAt > b.startsAt`.
+
+**Report 2: cancelled booking still blocks the slot.** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter on status. Its own doc comment says it excludes cancelled bookings. The conflict check and the availability view both call it, so a cancelled booking blocked new bookings and also showed up as busy time. I added `status: "CONFIRMED"` to the query, which matches rule 2.
+
+The existing tests already cover the overlap rules. I did not add or run a test for the cancelled-booking case, so that fix has only been checked by reading the code and the passing suite.

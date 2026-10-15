@@ -1,0 +1,7 @@
+I found and fixed both bugs. I haven't compiled or tested the changes: the type-check command (`tsc --noEmit`) was blocked pending approval, so it never ran.
+
+**Report 1: back-to-back bookings rejected.** The `overlaps()` function in `src/domain/booking.ts` used `<=` and `>=`. That treated bookings that only touch at a boundary, like 10:00–11:00 and 11:00–12:00, as overlapping. I changed it to strict `<` and `>`, which matches the half-open rule in `docs/DOMAIN.md`.
+
+**Report 2: cancelled booking still blocks the slot.** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter on status. Its own comment said cancelled bookings were excluded, but the query returned them, so they counted in conflict checks. I added `status: "CONFIRMED"` to the query. This also fixes the availability endpoint, which uses the same function and was showing cancelled slots as busy.
+
+The day query still uses inclusive `lte`/`gte` bounds. That's harmless, because `overlaps()` does the exact comparison and the availability calculation ignores bookings that merely touch the day's edge.

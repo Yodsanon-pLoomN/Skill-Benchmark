@@ -1,0 +1,10 @@
+I replaced the two copies of the overlap scan with one shared helper, but I couldn't run the type-check or the tests. Both `npx tsc --noEmit` and `npm test` were blocked waiting for approval, so the change is unverified.
+
+The helper is `overlapsAnyBooking(confirmed, range)` in `src/services/bookingService.ts`. Both `createBooking` and the fast path in `checkAvailability` now call it. It uses the existing `overlaps()` from the domain module, which matches the half-open interval rule in docs/DOMAIN.md.
+
+Behaviour should be unchanged, for these reasons:
+- **Booking creation:** it still fetches the day's bookings and throws `SlotUnavailableError` on any overlap.
+- **Availability:** the fast path still returns the whole day as free when nothing overlaps the full-day window, and falls through to the interval sweep otherwise.
+- **Cancelled bookings:** they are still ignored, because `findBookingsForDay` only returns `CONFIRMED` rows.
+
+Please run `npx tsc --noEmit` and `npm test` yourself, or approve them and I'll run them.

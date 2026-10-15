@@ -1,0 +1,9 @@
+I merged the two overlap checks into one helper in `src/services/bookingService.ts`, and all 13 tests pass. I didn't run `tsc` on its own, so there's no separate type-check.
+
+The helper is `anyOverlap(bookings, range)`, a thin wrapper over the existing `overlaps()` from the domain module. Both places now call it:
+- **`createBooking`:** the same-day conflict check calls `anyOverlap(sameDay, range)`.
+- **`checkAvailability`:** the "free all day" fast path calls `anyOverlap(bookings, dayWindow)`. I also removed the comment saying the logic was copied from `createBooking`, since that's no longer true.
+
+I didn't change what the endpoints return or when they throw.
+
+I didn't add any tests for the refactor.

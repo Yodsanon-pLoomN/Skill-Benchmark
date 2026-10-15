@@ -1,0 +1,50 @@
+I read the three frontend files. I couldn't read the backend repo (`sample-project`), because that read was denied. So the backend's response shape below comes from the TypeScript interfaces and the code comments. I haven't checked it against the actual Node handler.
+
+## 1. Who does what
+
+**`RoomService`** (`services/room.service.ts`) is a thin HTTP client.
+- It has two methods: `listRooms()` calls `GET {baseUrl}/rooms`, and `getAvailability(roomId, date)` calls `GET {baseUrl}/rooms/:id/availability?date=YYYY-MM-DD`.
+- `baseUrl` is `http://localhost:3000` from `environment.ts`.
+- It returns typed `Observable`s (`Room[]` and `AvailabilityResponse`) and does nothing else. The comment at line 24 says it deliberately doesn't re-implement any rules from the backend's `docs/DOMAIN.md`.
+
+**`RoomAvailabilityComponent`** owns the screen and its state.
+- The state is `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading` and `errorMessage`.
+- It decides when to call the service, handles success and error, and formats each interval as text for display.
+
+The component injects the service and subscribes to its observables. The service knows nothing about the component. The service is `providedIn: 'root'`, so there's one shared instance.
+
+## 2. Page load to slots on screen
+
+1. Angular creates the component and runs `ngOnInit`.
+2. `date` is set to today with `new Date().toISOString().slice(0, 10)`. That is today's **UTC** date, not the local date.
+3. `listRooms()` fires `GET /rooms`. On error, `errorMessage` becomes "Could not load rooms." and nothing else happens.
+4. On success, `rooms` is stored and the first room is selected. If the list is non-empty, `selectedRoomId = rooms[0].id` and `loadAvailability()` is called.
+5. `loadAvailability()` returns early if the room or date is empty. Otherwise it sets `loading = true`, clears the error, and calls `GET /rooms/{id}/availability?date=...`.
+6. The backend responds with an `AvailabilityResponse`: `{ roomId, date, free: [{ startsAt, endsAt }, ...] }`. The times are ISO strings. The backend has already worked out the free gaps from the bookings.
+7. On success, `freeIntervals = res.free` and `loading = false`. The component does no filtering, sorting or merging.
+8. The template renders the list only when `!loading && !errorMessage`:
+   - It loops over `freeIntervals` and shows `formatSlot(slot)` for each.
+   - `formatSlot` parses both strings with `new Date()`, takes characters 11–16 of `toISOString()` (`HH:mm`), and shows something like `09:00–10:30 UTC`.
+   - If the array is empty, it shows "No free slots."
+9. After that, the `<select>` and the date `<input>` both use `[(ngModel)]` plus `(ngModelChange)="loadAvailability()"`. Changing either one repeats steps 5–8.
+
+## 3. Where the half-open interval rule matters
+
+The rule is `[start, end)`. A slot includes its start instant but not its end instant. So a booking from 10:00 to 11:00 and another from 11:00 to 12:00 don't conflict, and a free slot ending at 10:00 is adjacent to one starting at 10:00.
+
+The code comment at line 55 says the frontend never compares or merges ranges. That's true today, so the frontend isn't wrong now. It would go wrong if someone adds logic that treats the endpoints as closed. The places to be careful:
+
+- **`formatSlot`** (`room-availability.component.ts:58`). It shows `endsAt` as a plain "to" time. A reader sees `09:00–10:00`, and it's easy to assume 10:00 is still free, or to add a minute or a "last minute" adjustment. `endsAt` is the first moment that is not free. Any change here, such as `end - 1 minute` or "inclusive end" labels, would misreport the slot.
+- **Any new feature that compares slots**, for example:
+  - Merging adjacent free slots, where `a.endsAt === b.startsAt` means they touch and there's no gap.
+  - Checking whether a requested booking fits inside a slot. That check must be `start >= slot.start && end <= slot.end`, not `<`.
+  - Disabling "Book" buttons or highlighting conflicts on the client.
+  
+  Using `<=` or `>=` in the wrong place would let the user pick a slot that overlaps by one instant, or hide one that fits exactly. The comment says this logic belongs server-side, so the safest approach is to ask the API rather than recompute it.
+- **Date and time-zone handling**, which can make the answer wrong even when the interval rule is respected:
+  - `this.date` comes from the UTC date, so for a user in a UTC+7 zone the "today" shown can be yesterday during the early morning.
+  - `formatSlot` always renders in UTC. A day boundary like `00:00Z`, which is the exclusive end of one day's range, can look like it belongs to a different local day than the user expects.
+  - If the display later switches to local time, an interval's end at midnight would appear as `00:00` on the *next* day. If you then format it with the same-day assumption, it can appear as the start of the day instead of the end.
+- **Parsing the ISO strings.** `new Date(interval.startsAt)` is fine for ISO strings with a `Z` or offset. A string without one would be read as local time, shifting both ends and silently changing which instants are in or out of the range.
+
+If you need to add any interval logic, first check `docs/DOMAIN.md` in the backend repo for the exact rule and the exact timestamp format.

@@ -1,0 +1,42 @@
+ฉันอ่านไฟล์ฝั่ง frontend ครบทั้ง 4 ไฟล์ ส่วนโค้ดฝั่ง backend (`sample-project/src`, `docs/DOMAIN.md`) อ่านไม่ได้ เพราะอยู่นอกโฟลเดอร์ที่ได้สิทธิ์ ดังนั้นสิ่งที่ backend ส่งกลับมาด้านล่างมาจาก interface ใน `room.service.ts` กับคอมเมนต์ในคอมโพเนนต์ ฉันไม่ได้ตรวจกับ backend จริง
+
+## 1. หน้าที่ของแต่ละส่วน และการคุยกัน
+
+**`RoomService`** (`room.service.ts`) ทำหน้าที่เป็นชั้น HTTP บางๆ เท่านั้น
+- มีสองเมธอด คือ `listRooms()` เรียก `GET /rooms` และ `getAvailability(roomId, date)` เรียก `GET /rooms/:id/availability?date=...`
+- คืนค่าเป็น `Observable` ที่กำหนดชนิดไว้ (`Room[]`, `AvailabilityResponse`)
+- ไม่มีกฎธุรกิจเลย คอมเมนต์บนคลาสระบุว่า Node API เป็นแหล่งความจริงเดียว และ service นี้แค่ดึงแล้วส่งต่อ
+
+**`RoomAvailabilityComponent`** ดูแล state ของหน้าจอและการแสดงผล
+- เก็บ state ไว้ 5 ตัว ได้แก่ `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading`, `errorMessage`
+- สั่งให้ service ดึงข้อมูลเมื่อห้องหรือวันที่เปลี่ยน
+- แปลง interval เป็นข้อความที่ผู้ใช้อ่านได้ ผ่าน `formatSlot()`
+
+ทั้งสองคุยกันทางเดียว คอมโพเนนต์ inject `RoomService` ผ่าน constructor เรียกเมธอด แล้ว `subscribe` รับผลลัพธ์กับ error ส่วน service ไม่รู้จักคอมโพเนนต์เลย
+
+## 2. ลำดับเหตุการณ์ตั้งแต่โหลดหน้าถึงเห็น slot
+
+1. `ngOnInit()` ตั้ง `date` เป็นวันนี้ด้วย `new Date().toISOString().slice(0, 10)` ซึ่งได้ `YYYY-MM-DD`
+2. เรียก `listRooms()` แล้ว subscribe
+3. ถ้าสำเร็จ จะเก็บ `rooms`, เลือกห้องแรกเป็น `selectedRoomId` (ถ้ามีอย่างน้อยหนึ่งห้อง) แล้วเรียก `loadAvailability()` ถ้าล้มเหลว จะตั้ง `errorMessage = 'Could not load rooms.'`
+4. `loadAvailability()` จะออกทันทีถ้าห้องหรือวันที่ว่าง ไม่เช่นนั้นตั้ง `loading = true`, ล้าง error แล้วเรียก `getAvailability(roomId, date)`
+5. backend ตอบ `AvailabilityResponse` รูปแบบ `{ roomId, date, free: [{ startsAt, endsAt }, ...] }` โดย `startsAt`/`endsAt` เป็น string (น่าจะเป็น ISO) และ `free` คือช่วงว่างที่ backend คำนวณเสร็จแล้ว
+6. `next` จะเก็บ `res.free` ลง `freeIntervals` แล้วตั้ง `loading = false` ส่วน `error` ตั้ง `'Could not load availability.'` กับ `loading = false`
+7. template แสดงผลดังนี้
+   - `*ngIf="loading"` โชว์ "Loading…"
+   - ถ้ามี error จะโชว์ข้อความนั้น
+   - เมื่อ `!loading && !errorMessage` จะ `*ngFor` วนทุก slot แล้วเรียก `formatSlot(slot)` ถ้า array ว่างจะโชว์ "No free slots."
+8. `formatSlot` แปลงสอง string เป็น `Date` แล้ว `toISOString().slice(11, 16)` จึงได้ `HH:mm` ในเวลา UTC ผลลัพธ์เช่น `09:00–10:30 UTC`
+
+หลังโหลดครั้งแรก การเปลี่ยน dropdown ห้องหรือ input วันที่จะเรียก `loadAvailability()` ซ้ำผ่าน `(ngModelChange)`
+
+## 3. จุดที่ต้องระวังเรื่อง half-open `[start, end)`
+
+ความหมายคือช่วง `09:00–10:00` ครอบคลุม 09:00 แต่ไม่รวม 10:00 ดังนั้นการจองที่จบ 10:00 กับการจองที่เริ่ม 10:00 ไม่ชนกัน โค้ดตอนนี้ปลอดภัยเพราะไม่เทียบหรือรวมช่วงเอง (ตามคอมเมนต์บรรทัด 55–57) ความเสี่ยงอยู่ตรงนี้:
+
+- **`formatSlot` (`room-availability.component.ts:58`)** ป้ายแบบ `09:00–10:00` อ่านได้ว่า 10:00 ว่างด้วย แต่จริงๆ 10:00 เป็นจุดเริ่มของช่วงถัดไป ถ้าอยากให้ชัดเจน ควรทำให้ฝั่ง UI สื่อว่าเวลาท้ายเป็นแบบไม่รวม
+- **การตัดวินาทีด้วย `slice(11, 16)`** ถ้า `endsAt` เป็น `10:00:30` ป้ายจะแสดง `10:00` ทำให้ขอบเขตดูไม่ตรงกับข้อมูลจริง
+- **ถ้าจะเพิ่มโค้ดเทียบหรือรวมช่วง** เช่น รวม slot ติดกัน, ซ่อน slot สั้น, หรือเช็กว่าเวลาที่ผู้ใช้เลือกว่างไหม ห้ามใช้ `<=` กับ `endsAt` เพราะ `[09:00,10:00)` กับ `[10:00,11:00)` ติดกันพอดี การเทียบแบบ closed จะทำให้ดูเหมือนซ้อนทับ แล้วซ่อนหรือตัด slot ที่ว่างจริง หรือในทางกลับกันอาจโชว์ slot ที่จองแล้ว การตัดสินแบบนี้ควรเรียก backend แทนการทำซ้ำที่ฝั่ง UI
+- **เขตเวลา** `formatSlot` แสดง UTC เสมอ และ `date` ตอนเริ่มก็คำนวณจาก UTC ผู้ใช้ในเวลาท้องถิ่น (เช่นไทย UTC+7) อาจเห็น "วันนี้" เป็นวันก่อนหน้าช่วงหลังเที่ยงคืน หรือเห็น slot ที่เลื่อนไปจากเวลาที่คิด ถ้าแปลงเป็นเวลาท้องถิ่นโดยไม่ระวัง ขอบ `endsAt` อาจข้ามไปอีกวัน ซึ่งเป็นจุดที่ half-open ผิดง่ายที่สุด
+
+นอกประเด็นนี้ ยังมีอีกจุดที่ควรรู้ คือไม่มีการยกเลิก request เก่า ถ้าผู้ใช้เปลี่ยนห้องหรือวันที่เร็วๆ response ที่ช้ากว่าอาจมาทับผลล่าสุด ควรใช้ `switchMap` ถ้าจะแก้

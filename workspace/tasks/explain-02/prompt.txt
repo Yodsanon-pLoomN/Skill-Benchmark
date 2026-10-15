@@ -1,0 +1,21 @@
+Read src/repositories/bookingRepository.ts (findBookingsForDay) and
+src/services/bookingService.ts (checkAvailability).
+
+Then explain, for a developer who has just joined the team:
+
+1. What findBookingsForDay actually fetches from the database - which
+   bookings it includes and which it excludes, and why (referencing
+   docs/DOMAIN.md).
+2. Walk through checkAvailability's loop step by step for a room that has
+   exactly two CONFIRMED bookings that day: one from 09:00-10:00 and one
+   from 09:30-11:00 (they overlap each other, which can happen if one was
+   created before the other's conflict check, or via direct data edits -
+   the loop still has to produce a sane answer). Trace the value of
+   `cursor` and what gets pushed into `free` at each step, and state the
+   final list of free intervals returned.
+3. The line `if (booking.startsAt > cursor)` uses strict `>`. Explain, with
+   a concrete example using two back-to-back CONFIRMED bookings (one ending
+   exactly when the other starts - which docs/DOMAIN.md says is legal),
+   what would go wrong if this were changed to `>=`.
+
+Do not change any files.

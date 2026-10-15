@@ -1,0 +1,9 @@
+Both bugs fixed. I couldn't run the tests because the test command needed approval.
+
+**Report 1 (11:00 back-to-back):** `overlaps()` in `src/domain/booking.ts:12` used `<=` and `>=`. A booking ending at 11:00 and one starting at 11:00 counted as overlapping. It now uses `<` and `>`, which matches the half-open rule in `docs/DOMAIN.md`.
+
+**Report 2 (cancelled 2pm booking):** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter on status, so cancelled bookings still showed up in the conflict check. Its own comment said they were excluded. I added `status: "CONFIRMED"` to the query. This also fixes the availability endpoint, which reads from the same query.
+
+I left the day-boundary `lte`/`gte` in that query alone. They are inclusive, but `overlaps()` now handles the edge cases, so they do no harm.
+
+Run `npx vitest run` to confirm. I can run it if you approve the command.

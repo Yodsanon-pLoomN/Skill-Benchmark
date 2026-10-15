@@ -1,0 +1,14 @@
+Edits done. The type check and tests were blocked by a permission prompt in this session, so I haven't run them.
+
+In `src/services/bookingService.ts` I added one helper, `overlapsAny(bookings, range)`. It wraps the domain `overlaps()` check, which is the half-open `[start, end)` rule from `docs/DOMAIN.md`. Both places now call it:
+- **`createBooking`:** the conflict check calls `overlapsAny(sameDay, range)`.
+- **`checkAvailability`:** the fast path calls `!overlapsAny(bookings, dayWindow)`.
+
+I also removed the stale "copied from createBooking" comment.
+
+Behaviour should not change:
+- **Same filter:** both callers still get their bookings from `findBookingsForDay`, which only returns `CONFIRMED` bookings.
+- **Same overlap rule:** the check is the same `overlaps()` call as before.
+- **Untouched logic:** the free-interval sweep and the validation order in `createBooking` are as they were.
+
+Run `npx tsc --noEmit` and `npm test` to confirm.

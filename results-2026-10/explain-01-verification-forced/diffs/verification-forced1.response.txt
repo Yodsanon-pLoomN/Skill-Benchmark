@@ -1,0 +1,47 @@
+ตามที่สั่ง ผมอ่านไฟล์อย่างเดียวและไม่ได้แก้ไฟล์ใด ผมไม่ได้อ่านโค้ด backend (`sample-project`) เพราะ tool ยังไม่ได้รับสิทธิ์อ่านโฟลเดอร์นั้น และไม่ได้รันแอปด้วย ดังนั้นรูปแบบข้อมูลที่ backend ส่งมาด้านล่างอ้างจาก interface ใน `room.service.ts` และคอมเมนต์ในโค้ด ผมยังไม่ได้เทียบกับ response จริง
+
+## 1. หน้าที่ของแต่ละส่วน และการสื่อสารกัน
+
+**`RoomService`** (`room.service.ts`) เป็นชั้นเรียก HTTP อย่างเดียว
+- `listRooms()` เรียก `GET {baseUrl}/rooms` ได้ `Room[]`
+- `getAvailability(roomId, date)` เรียก `GET {baseUrl}/rooms/{roomId}/availability?date=...` ได้ `AvailabilityResponse` ซึ่งมี `roomId`, `date` และ `free: FreeInterval[]` โดย `FreeInterval` คือ `{ startsAt, endsAt }` เป็น string
+- ไม่มี business logic เลย คอมเมนต์ระบุว่า backend (Node API) คือแหล่งความจริงของกฎการจอง และ service นี้แค่ดึงแล้วส่งต่อ
+
+**`RoomAvailabilityComponent`** เป็นฝั่ง UI และเก็บ state
+- state มี `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading`, `errorMessage`
+- จัดการ event ของ dropdown ห้องกับ input วันที่
+- แปลงช่วงเวลาเป็นข้อความที่แสดงผ่าน `formatSlot`
+
+**การคุยกัน:** component inject `RoomService` ผ่าน constructor แล้ว `subscribe` ผล Observable เอง service ไม่รู้จัก component
+
+## 2. ลำดับเหตุการณ์ตั้งแต่โหลดหน้าจนเห็น slot
+
+1. Angular เรียก `ngOnInit()` ซึ่งตั้ง `date` เป็นวันนี้ด้วย `new Date().toISOString().slice(0, 10)` (รูป `YYYY-MM-DD`)
+2. เรียก `roomService.listRooms()` แล้ว subscribe
+3. ถ้าสำเร็จ จะเก็บ `rooms` แล้วเลือกห้องแรก (`rooms[0].id`) ถ้ามีห้อง จากนั้นเรียก `loadAvailability()`
+   - ถ้า error จะตั้ง `errorMessage = 'Could not load rooms.'`
+4. `loadAvailability()` จะออกทันทีถ้ายังไม่มีห้องหรือวันที่ นอกนั้นตั้ง `loading = true` และล้าง `errorMessage` แล้วเรียก `getAvailability(selectedRoomId, date)`
+5. backend ตอบ `{ roomId, date, free: [{ startsAt, endsAt }, ...] }` (ตาม interface) component เอา `res.free` ใส่ `freeIntervals` และตั้ง `loading = false`
+   - ถ้า error จะตั้ง `'Could not load availability.'` และ `loading = false`
+6. template (`.html`) แสดงผล
+   - `Loading…` ตอน `loading` เป็นจริง และแสดง error ถ้ามี
+   - `<ul>` จะแสดงเมื่อ `!loading && !errorMessage` โดยวน `*ngFor` ผ่าน `freeIntervals` แล้วแสดง `formatSlot(slot)` ต่อรายการ
+   - ถ้า `freeIntervals` ว่าง จะแสดง "No free slots."
+7. `formatSlot` สร้าง `Date` จาก `startsAt` กับ `endsAt` แล้วใช้ `toISOString().slice(11, 16)` เอาแค่ `HH:mm` ผลเป็นข้อความอย่าง `09:00–10:00 UTC`
+8. หลังจากนั้น การเปลี่ยน dropdown หรือวันที่ผ่าน `[(ngModel)]` และ `(ngModelChange)` จะเรียก `loadAvailability()` ใหม่ ทำให้วนซ้ำตั้งแต่ข้อ 4
+
+## 3. จุดที่ต้องระวังเรื่อง half-open interval
+
+คอมเมนต์ในโค้ดบอกว่าช่วงว่างเป็น `[startsAt, endsAt)` คือรวมเวลาเริ่มและไม่รวมเวลาจบ ช่วง `09:00–10:00` จึงหมายความว่าจอง 10:00 ได้ และการจองที่เริ่ม 10:00 ไม่ชนกับช่วงนี้ ตอนนี้ frontend แค่แสดง label ไม่ได้เทียบหรือรวมช่วง แต่ยังมีจุดที่ทำให้ผู้ใช้เห็นคำตอบผิดได้:
+
+- **`formatSlot` (`room-availability.component.ts:58-63`)**
+  - label `09:00–10:00` อ่านเป็นช่วงปิดได้ ถ้าโค้ดใหม่เอา `endsAt` ไปเช็ค "ว่างไหม" ด้วย `<=` แทน `<` จะเกิดจุดทับกันหนึ่งขอบ
+  - `slice(11, 16)` ตัดวินาทีและมิลลิวินาทีทิ้ง ถ้า `endsAt` เป็น `10:00:30` จะแสดงเป็น `10:00` ทั้งที่จริงยังว่างไม่ถึง
+  - ช่วงที่จบเที่ยงคืนจะแสดง `00:00` ซึ่งดูเหมือนต้นวัน ไม่ใช่ปลายวัน
+- **เขตเวลา**
+  - `new Date(...)` ตามด้วย `toISOString()` จะแปลงเป็น UTC เสมอ ถ้า backend ส่ง string ที่ไม่มี `Z` หรือ offset ระบบจะตีความเป็นเวลาท้องถิ่น แล้วเวลาที่แสดงจะเลื่อนไปเท่า offset
+  - เวลาที่แสดงเป็น UTC ผู้ใช้ในไทย (UTC+7) ต้องบวกเองในใจ
+- **`ngOnInit` (บรรทัด 24)** ใช้ `toISOString()` หาวันนี้ ซึ่งเป็นวันที่แบบ UTC ช่วง 00:00–07:00 เวลาไทย ค่าเริ่มต้นจะเป็น "เมื่อวาน" ทำให้ผู้ใช้ดูข้อมูลผิดวัน
+- **โค้ดที่จะเพิ่มในอนาคต** เช่น เรียงหรือรวมช่วงติดกัน, ปุ่ม "จองช่วงนี้", หรือเช็ค slot ฝั่ง client ถ้าใช้ `<=` กับ `endsAt` หรือรวมช่วง `09:00–10:00` กับ `10:00–11:00` แบบนับขอบซ้ำ จะแสดงว่าชนทั้งที่จริงไม่ชน หรือในทางกลับกัน คอมเมนต์ในโค้ดตั้งใจให้ logic นี้อยู่ฝั่ง server ถ้าจำเป็นต้องมีฝั่ง client ให้ใช้ `start < otherEnd && otherStart < end` และอย่าใช้ `<=`
+
+ข้อสังเกตเพิ่ม (ไม่เกี่ยวกับ half-open): `loadAvailability()` ไม่ยกเลิก request ที่ยังค้างอยู่ ถ้าผู้ใช้เปลี่ยนห้องหรือวันที่เร็วๆ response เก่าที่มาช้ากว่าอาจเขียนทับ `freeIntervals` ของคำขอล่าสุด

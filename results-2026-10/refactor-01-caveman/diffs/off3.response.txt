@@ -1,0 +1,13 @@
+The overlap logic is now one shared helper, but I couldn't run the tests or the type-check. Every attempt to run `npm test` or `npx tsc --noEmit` was blocked waiting for permission approval, and this session can't grant it.
+
+**What changed** (all in `src/services/bookingService.ts`):
+- I added a private helper, `overlapsAny(bookings, range)`, which wraps the existing domain `overlaps` function.
+- `createBooking` now calls it for the same-day conflict check.
+- `checkAvailability` now calls it for the "free all day" fast path, and I removed the comment saying that code was copied from `createBooking`.
+
+**Why behaviour should be the same:**
+- The inputs and the overlap function are unchanged, so both endpoints return what they did before.
+- Both callers still get their bookings from `findBookingsForDay`, which only returns CONFIRMED ones, so cancelled bookings still never conflict.
+- Back-to-back bookings still don't overlap, because the half-open rule lives in `overlaps` and I didn't touch it.
+
+**To check:** run `npm test` and `npx tsc --noEmit` yourself, or approve them and I'll run them.

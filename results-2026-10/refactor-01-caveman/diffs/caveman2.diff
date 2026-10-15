@@ -1,0 +1,42 @@
+diff --git a/src/services/bookingService.ts b/src/services/bookingService.ts
+index 6ebd8d6..54eff87 100644
+--- a/src/services/bookingService.ts
++++ b/src/services/bookingService.ts
+@@ -18,6 +18,11 @@ function dateStrOf(date: Date): string {
+   return date.toISOString().slice(0, 10);
+ }
+ 
++/** Shared overlap scan: does any of the (CONFIRMED) bookings overlap the range? */
++function anyOverlap(bookings: TimeRange[], range: TimeRange): boolean {
++  return bookings.some((existing) => overlaps(existing, range));
++}
++
+ export async function createBooking(input: {
+   roomId: string;
+   userId: string;
+@@ -34,8 +39,7 @@ export async function createBooking(input: {
+ 
+   // Conflict check: any CONFIRMED booking that day overlapping the requested range.
+   const sameDay = await findBookingsForDay(input.roomId, dateStrOf(range.startsAt));
+-  const hasConflict = sameDay.some((existing) => overlaps(existing, range));
+-  if (hasConflict) {
++  if (anyOverlap(sameDay, range)) {
+     throw new SlotUnavailableError();
+   }
+ 
+@@ -69,12 +73,10 @@ export async function checkAvailability(roomId: string, dateStr: string): Promis
+     (a, b) => a.startsAt.getTime() - b.startsAt.getTime(),
+   );
+ 
+-  // Fast path: if nothing that day overlaps the full-day window at all, the
+-  // room is free all day and we can skip the interval sweep below. (Copied
+-  // from the conflict check in createBooking rather than reused from there.)
++  // Fast path: if nothing overlaps the full-day window, the room is free all
++  // day and we can skip the interval sweep below.
+   const dayWindow: TimeRange = { startsAt: dayStart, endsAt: dayEnd };
+-  const hasAnyBookingThatDay = bookings.some((existing) => overlaps(existing, dayWindow));
+-  if (!hasAnyBookingThatDay) {
++  if (!anyOverlap(bookings, dayWindow)) {
+     return [dayWindow];
+   }
+ 

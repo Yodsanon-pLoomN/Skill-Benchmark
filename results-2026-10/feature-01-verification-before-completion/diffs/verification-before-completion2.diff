@@ -1,0 +1,64 @@
+diff --git a/Controllers/BookingsController.cs b/Controllers/BookingsController.cs
+new file mode 100644
+index 0000000..014a447
+--- /dev/null
++++ b/Controllers/BookingsController.cs
+@@ -0,0 +1,58 @@
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++using ReportsApi.Data;
++using ReportsApi.Models;
++
++namespace ReportsApi.Controllers;
++
++public record ExtendBookingRequest(DateTimeOffset? NewEndsAt);
++
++[ApiController]
++[Route("bookings")]
++public class BookingsController : ControllerBase
++{
++    private static readonly TimeSpan MaxDuration = TimeSpan.FromHours(8);
++
++    private readonly ReportsDbContext _db;
++
++    public BookingsController(ReportsDbContext db)
++    {
++        _db = db;
++    }
++
++    [HttpPatch("{id}/extend")]
++    public async Task<ActionResult<Booking>> Extend(string id, [FromBody] ExtendBookingRequest request)
++    {
++        if (request.NewEndsAt is null)
++            return BadRequest(new { error = "newEndsAt is required" });
++
++        var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id);
++        if (booking is null)
++            return NotFound(new { error = "Booking not found" });
++
++        if (booking.Status != "CONFIRMED")
++            return Conflict(new { error = "Only CONFIRMED bookings can be extended" });
++
++        var newEndsAt = request.NewEndsAt.Value.UtcDateTime;
++
++        if (newEndsAt <= booking.EndsAt)
++            return BadRequest(new { error = "newEndsAt must be after the current EndsAt" });
++
++        if (newEndsAt - booking.StartsAt > MaxDuration)
++            return BadRequest(new { error = "Total booking duration must not exceed 8 hours" });
++
++        var overlaps = await _db.Bookings.AnyAsync(b =>
++            b.Id != booking.Id &&
++            b.RoomId == booking.RoomId &&
++            b.Status == "CONFIRMED" &&
++            b.StartsAt < newEndsAt &&
++            b.EndsAt > booking.StartsAt);
++        if (overlaps)
++            return Conflict(new { error = "Extended range overlaps another CONFIRMED booking in the room" });
++
++        booking.EndsAt = newEndsAt;
++        await _db.SaveChangesAsync();
++
++        return Ok(booking);
++    }
++}

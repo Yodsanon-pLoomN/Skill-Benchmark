@@ -1,0 +1,17 @@
+There's a small helper module, src/lib/time.ts, with two functions:
+startOfUtcDay(dateStr) and endOfUtcDay(dateStr). They compute the start and
+end instants of a given UTC calendar day.
+
+src/repositories/bookingRepository.ts already uses these two helpers when
+querying bookings for a day.
+
+src/services/bookingService.ts's checkAvailability function needs the exact
+same start-of-day / end-of-day instants (to know where to start and stop
+sweeping for free intervals), but instead of using the helpers in
+src/lib/time.ts, it re-derives them inline with its own
+`new Date(...)` string template.
+
+Please refactor checkAvailability to reuse the existing helpers in
+src/lib/time.ts instead of re-deriving the same day-boundary instants
+inline. The behaviour of GET /rooms/:id/availability must not change -
+every case in docs/DOMAIN.md must still work exactly as before.

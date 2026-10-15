@@ -1,0 +1,14 @@
+I couldn't run the typecheck or tests, so the refactor is untested. The shell needed approval for the command and this session is non-interactive.
+
+**What changed** (`src/services/bookingService.ts`)
+- I added one private helper, `hasOverlappingBooking(bookings, range)`, which returns `bookings.some(b => overlaps(b, range))`.
+- `createBooking` now calls it on the same-day bookings for the requested range.
+- The `checkAvailability` fast path now calls it with the full-day window, and I removed the "copied rather than reused" comment.
+
+**Behaviour**
+- The helper takes the bookings list instead of fetching it. Both callers already load the day's bookings, so passing the list avoids a second query in `checkAvailability`.
+- `findBookingsForDay` still filters to `CONFIRMED`, so cancelled bookings are still ignored (DOMAIN rule 2).
+- The overlap semantics are unchanged: the shared `overlaps()` still uses the half-open `[start, end)` rule.
+- The fast-path day window is unchanged.
+
+To verify, run `npx tsc --noEmit && npm test` in `sample-project`. The baseline was 13 tests passing.

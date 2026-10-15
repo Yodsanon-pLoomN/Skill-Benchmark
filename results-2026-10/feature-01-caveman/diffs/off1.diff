@@ -1,0 +1,71 @@
+diff --git a/Controllers/BookingsController.cs b/Controllers/BookingsController.cs
+new file mode 100644
+index 0000000..e0dbdaa
+--- /dev/null
++++ b/Controllers/BookingsController.cs
+@@ -0,0 +1,65 @@
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++using ReportsApi.Data;
++using ReportsApi.Models;
++
++namespace ReportsApi.Controllers;
++
++public record ExtendBookingRequest(DateTimeOffset? NewEndsAt);
++
++[ApiController]
++[Route("bookings")]
++public class BookingsController : ControllerBase
++{
++    private static readonly TimeSpan MaxDuration = TimeSpan.FromHours(8);
++
++    private readonly ReportsDbContext _db;
++
++    public BookingsController(ReportsDbContext db)
++    {
++        _db = db;
++    }
++
++    [HttpPatch("{id}/extend")]
++    public async Task<ActionResult<Booking>> Extend(string id, [FromBody] ExtendBookingRequest request)
++    {
++        if (request.NewEndsAt is null)
++            return BadRequest(new { error = "newEndsAt is required and must be an ISO 8601 timestamp." });
++
++        var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id);
++        if (booking is null)
++            return NotFound(new { error = "Booking not found." });
++
++        if (booking.Status != "CONFIRMED")
++            return Conflict(new { error = "Only CONFIRMED bookings can be extended." });
++
++        // SQLite returns DateTimes with Kind=Unspecified; values are stored as UTC.
++        var startsAt = DateTime.SpecifyKind(booking.StartsAt, DateTimeKind.Utc);
++        var endsAt = DateTime.SpecifyKind(booking.EndsAt, DateTimeKind.Utc);
++        var newEndsAt = request.NewEndsAt.Value.UtcDateTime;
++
++        if (newEndsAt <= endsAt)
++            return BadRequest(new { error = "newEndsAt must be after the current EndsAt." });
++
++        if (newEndsAt - startsAt > MaxDuration)
++            return BadRequest(new { error = "Total booking duration must not exceed 8 hours." });
++
++        // Filter by room/status in SQL, compare times in memory to avoid
++        // provider-specific DateTime translation differences.
++        var others = await _db.Bookings
++            .AsNoTracking()
++            .Where(b => b.RoomId == booking.RoomId && b.Id != booking.Id && b.Status == "CONFIRMED")
++            .ToListAsync();
++
++        var overlaps = others.Any(b =>
++            startsAt < DateTime.SpecifyKind(b.EndsAt, DateTimeKind.Utc) &&
++            newEndsAt > DateTime.SpecifyKind(b.StartsAt, DateTimeKind.Utc));
++        if (overlaps)
++            return Conflict(new { error = "The extended range overlaps another CONFIRMED booking in this room." });
++
++        booking.EndsAt = newEndsAt;
++        await _db.SaveChangesAsync();
++
++        return Ok(booking);
++    }
++}

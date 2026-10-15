@@ -1,0 +1,25 @@
+diff --git a/src/domain/booking.ts b/src/domain/booking.ts
+index 3d430a9..ac07724 100644
+--- a/src/domain/booking.ts
++++ b/src/domain/booking.ts
+@@ -9,7 +9,7 @@ const MAX_DURATION_HOURS = 8;
+  * starting at 11:00 do not overlap.
+  */
+ export function overlaps(a: TimeRange, b: TimeRange): boolean {
+-  return a.startsAt <= b.endsAt && a.endsAt >= b.startsAt;
++  return a.startsAt < b.endsAt && a.endsAt > b.startsAt;
+ }
+ 
+ export function assertValidRange(range: TimeRange): void {
+diff --git a/src/repositories/bookingRepository.ts b/src/repositories/bookingRepository.ts
+index 178bb19..d69de50 100644
+--- a/src/repositories/bookingRepository.ts
++++ b/src/repositories/bookingRepository.ts
+@@ -23,6 +23,7 @@ export async function findBookingsForDay(roomId: string, dateStr: string): Promi
+   const rows = await prisma.booking.findMany({
+     where: {
+       roomId,
++      status: "CONFIRMED",
+       startsAt: { lte: endOfUtcDay(dateStr) },
+       endsAt: { gte: startOfUtcDay(dateStr) },
+     },

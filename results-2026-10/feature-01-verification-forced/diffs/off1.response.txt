@@ -1,0 +1,28 @@
+I've added the endpoint and I'm now building and testing it. The first test command was rejected by the shell, so I'll run it again in simpler steps.
+
+I couldn't build or run the endpoint. Both the Bash and PowerShell tools asked for approval on `dotnet build`, and there's no one here to approve it. The code is written but has not been compiled or tested.
+
+**What I added** (in `workspace/sample-project-reports-api`):
+- `Controllers/BookingsController.cs` adds `PATCH /bookings/{id}/extend`. It takes `{ "newEndsAt": ... }` and returns the updated booking on success.
+- `Services/BookingExtensionService.cs` holds the four rules.
+- `Program.cs` registers the new service.
+
+**Error responses:**
+
+| Case | Status |
+|---|---|
+| Booking id not found | 404 |
+| Booking is not `CONFIRMED` (rule 1) | 409 |
+| Extended range overlaps another confirmed booking in the room (rule 4) | 409 |
+| `newEndsAt` missing or not an ISO timestamp | 400 |
+| `newEndsAt` not strictly after the current `EndsAt` (rule 2) | 400 |
+| Total duration from `StartsAt` over 8 hours (rule 3) | 400 |
+
+Each error returns `{ "error": "<message>" }`.
+
+**Behaviour to know about:**
+- The overlap check uses `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`, so a booking that ends exactly when another starts does not conflict. It skips the booking itself and cancelled bookings.
+- SQLite hands dates back with an unspecified kind, so I treat every date as UTC before comparing. The comparison runs in memory rather than in SQL.
+- Exactly 8 hours is allowed. Anything longer is rejected.
+
+To check it, run `dotnet build`, start the app, and send `PATCH` requests against the seed data. For example, `seed-1` runs 09:00–10:00 on 2031-01-01. Extending it to 11:30 should succeed, and extending it past 17:00 should return 400. `seed-3` is cancelled, so it should return 409. I haven't added automated tests, since the project has no test project.

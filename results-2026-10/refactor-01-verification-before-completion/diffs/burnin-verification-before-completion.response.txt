@@ -1,0 +1,9 @@
+I've replaced the two overlap-scanning copies in `src/services/bookingService.ts` with one shared helper. All 13 tests pass. I couldn't run `npx tsc --noEmit` because the command needed approval. The tests don't type-check, so the types are unchecked.
+
+The new helper is `overlapsAny(bookings, range)`, a small private function that wraps the domain's `overlaps()`. Both places now call it:
+- **`createBooking`:** the conflict check is now `if (overlapsAny(sameDay, range)) throw new SlotUnavailableError()`.
+- **`checkAvailability`:** the fast path is now `if (!overlapsAny(bookings, dayWindow))`. I also removed the comment saying it was copied from `createBooking`.
+
+Both callers still get their bookings from `findBookingsForDay`, which already returns only CONFIRMED bookings. Cancelled bookings are therefore still ignored (rule 2), and the half-open overlap behaviour is unchanged.
+
+I didn't add a test for `checkAvailability`; the existing integration tests don't exercise it directly. The refactor there is a one-line swap to the same `overlaps()` logic.

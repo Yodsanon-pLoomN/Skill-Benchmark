@@ -1,0 +1,7 @@
+Running the test suite to check the two fixes.
+
+I fixed both bugs, but I couldn't run the tests. Every attempt to run them was blocked for approval, and this session can't grant that. Please run `npm test` yourself to confirm.
+
+**Report 1 (11:00 back-to-back bookings rejected):** `overlaps()` in `src/domain/booking.ts` used `<=` and `>=`, so bookings that only touch at one instant counted as overlapping. `docs/DOMAIN.md` says a booking covers `[startsAt, endsAt)`, so I changed it to the strict comparison the spec gives: `a.startsAt < b.endsAt && a.endsAt > b.startsAt`.
+
+**Report 2 (cancelled 2pm slot still blocked):** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter by status, so cancelled bookings were still checked for conflicts. Its own comment said they were excluded. I added `status: "CONFIRMED"` to the query. The availability endpoint uses the same query, so it also stops showing cancelled slots as taken.

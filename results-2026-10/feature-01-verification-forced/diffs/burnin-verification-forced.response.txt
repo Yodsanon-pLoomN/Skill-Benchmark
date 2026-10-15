@@ -1,0 +1,30 @@
+I'll start by looking at the project structure.
+
+Writing the endpoint is done. I'm now building it to check that it compiles, then I'll run it and test each rule.
+
+I wrote the endpoint, but I couldn't build or run it, so none of it is verified. The sandbox asked for approval on every `dotnet build` attempt and I can't grant that here. I don't know whether it compiles.
+
+**What I added:**
+- `Controllers/BookingsController.cs` handles `PATCH /bookings/{id}/extend` with body `{ "newEndsAt": ... }`.
+- `Services/BookingExtensionService.cs` applies the four rules.
+- `Program.cs` registers the new service.
+
+**What each rule returns:**
+- **Unknown booking id:** 404.
+- **Missing `newEndsAt`:** 400.
+- **Rule 1, booking is not `CONFIRMED`:** 409.
+- **Rule 2, `newEndsAt` is not strictly after the current `EndsAt`:** 400.
+- **Rule 3, total duration from the original `StartsAt` is over 8 hours:** 400. Exactly 8 hours is allowed.
+- **Rule 4, overlap with another `CONFIRMED` booking in the same room:** 409. It uses `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`, so a booking that ends exactly when another starts is allowed. The booking itself and cancelled bookings are excluded.
+- **Success:** it saves the new `EndsAt` and returns the updated booking with 200.
+
+I picked those status codes myself; the spec only said "4xx".
+
+`newEndsAt` is parsed as a timestamp with an offset and converted to UTC before comparing, because the seed data is stored as UTC.
+
+**To check it yourself:**
+1. Run `dotnet build` in `sample-project-reports-api`.
+2. Start the app and call the endpoint against a database with a few extra bookings. The seed data has only 3 bookings, so it has no adjacent or overlapping case. You'll need to add some, for example one that ends exactly where another begins.
+3. Cover these cases: a cancelled booking, `newEndsAt` equal to the current end, 8h and 8h plus 1 minute, an overlap, and an exact touch.
+
+If you approve `dotnet` commands for this session, I can run that check.

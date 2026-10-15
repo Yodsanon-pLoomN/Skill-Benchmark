@@ -1,0 +1,12 @@
+RoomAvailabilityComponent (src/app/room-availability/room-availability.component.ts)
+shows a "Last updated at HH:mm UTC" line under the free-slots list, and each
+free slot itself is shown as "HH:mm-HH:mm UTC".
+
+Both of these were built by independently slicing the HH:mm portion out of
+an ISO timestamp string - formatSlot() does it for each interval, and
+formatTimestamp() does it again for the last-updated line. They're the same
+idea (format a Date as HH:mm in UTC) written twice.
+
+Please refactor this into a single shared implementation, used by both
+places. What's displayed on screen must not change - the free-slots list and
+the "Last updated at ..." line must render exactly the same as before.

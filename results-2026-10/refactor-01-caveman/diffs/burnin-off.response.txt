@@ -1,0 +1,20 @@
+I've made the refactor, but I couldn't run the type-check or tests. Both `npm test` and `npx tsc` were blocked pending approval, which this session can't give.
+
+The overlap scan now lives in one private helper in `src/services/bookingService.ts`:
+
+```ts
+function overlapsAny(bookings: Booking[], range: TimeRange): boolean {
+  return bookings.some((existing) => overlaps(existing, range));
+}
+```
+
+- **`createBooking`:** the conflict check now calls `overlapsAny(sameDay, range)`.
+- **`checkAvailability`:** the fast path now calls `overlapsAny(bookings, dayWindow)`. I also removed the comment saying the logic was copied from `createBooking`, since that's no longer true.
+
+Behaviour should be unchanged, but that's from reading the code rather than running it:
+
+- Both callers still use the same `overlaps()` from the domain layer, so the half-open interval rules stay as written in `docs/DOMAIN.md`.
+- `findBookingsForDay` still filters to `CONFIRMED`, so cancelled bookings are still ignored.
+- The interval sweep in `checkAvailability` is untouched.
+
+Please run `npx tsc --noEmit` and `npm test` yourself to confirm.

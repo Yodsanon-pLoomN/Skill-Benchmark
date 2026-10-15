@@ -1,0 +1,47 @@
+I read the three files. I couldn't read the backend repo (`sample-project`) because that permission was denied. So the backend details below come from the frontend's types and comments, not from the backend code. I haven't checked the half-open rule in the backend's `docs/DOMAIN.md`.
+
+## 1. Who does what
+
+**`RoomService`** (`room.service.ts`) is a thin HTTP layer and nothing else.
+- `listRooms()` calls `GET {baseUrl}/rooms` and returns `Observable<Room[]>`.
+- `getAvailability(roomId, date)` calls `GET {baseUrl}/rooms/:roomId/availability?date=...` and returns `Observable<AvailabilityResponse>`.
+- `baseUrl` comes from `environment.bookingApiBaseUrl`, which is `http://localhost:3000`.
+- It defines the response types `Room`, `FreeInterval` and `AvailabilityResponse`.
+- Its comment says it re-implements none of the booking rules. The Node API is the single source of truth.
+
+**`RoomAvailabilityComponent`** owns the UI state and user interaction:
+- State: `rooms`, `selectedRoomId`, `date`, `freeIntervals`, `loading` and `errorMessage`.
+- It decides when to call the service, and it turns the result into text with `formatSlot`.
+
+They talk through plain dependency injection. The component calls `roomService.listRooms()` and `roomService.getAvailability()`, subscribes to the returned observables, and copies results into its own fields. The service holds no state and knows nothing about the component.
+
+## 2. Page load to slots on screen
+
+1. **`ngOnInit`** (`room-availability.component.ts:23`) sets `date` to today. It uses `new Date().toISOString().slice(0, 10)`, which is today's date in **UTC**, not the user's local date.
+2. It calls `listRooms()`, which sends `GET /rooms`.
+3. On success it stores `rooms`, selects `rooms[0].id`, and calls `loadAvailability()`. If the list is empty, nothing more happens. On error it shows "Could not load rooms."
+4. **`loadAvailability()`** returns early if there is no room or date. Otherwise it sets `loading = true` and clears `errorMessage`.
+5. It calls `getAvailability(roomId, date)`, which sends `GET /rooms/<id>/availability?date=YYYY-MM-DD`.
+6. **What the backend sends** is an `AvailabilityResponse`:
+   ```
+   { roomId, date, free: [ { startsAt: "<ISO string>", endsAt: "<ISO string>" }, ... ] }
+   ```
+   The backend has already worked out the gaps between bookings. The frontend never sees the bookings themselves, only the free intervals.
+7. On success the component does `freeIntervals = res.free` and `loading = false`. On error it shows "Could not load availability."
+8. **Template** (`.html`):
+   - `<ul>` is shown only when `!loading && !errorMessage`.
+   - Each slot renders as `<li>{{ formatSlot(slot) }}</li>`.
+   - If the array is empty, it shows "No free slots."
+9. **`formatSlot`** parses both ISO strings with `new Date(...)`. It takes characters 11–16 of `toISOString()` (`HH:mm`) and returns something like `09:00–10:30 UTC`.
+10. Changing the room dropdown or the date input fires `ngModelChange`, which calls `loadAvailability()` again from step 4.
+
+## 3. Where the half-open rule matters on the frontend
+
+Half-open `[startsAt, endsAt)` means `startsAt` is free and usable, and `endsAt` is the first moment that is not part of the slot. So a booking ending at 10:00 and one starting at 10:00 don't conflict. Wrong handling here would come from the following places.
+
+- **`formatSlot` (`:58-63`)** is the only place the intervals are interpreted. The label `09:00–10:30` reads naturally as "until 10:30 inclusive". The slot actually ends just before 10:30, and 10:30 is the first moment that is not free. A user could take it as "I can be there until 10:30:59". The component doesn't say it's half-open, so the display would need to make that clear. A developer who "fixes" the label by adding or subtracting a minute (for example `10:29`) would show a different range than the backend means.
+- **Minute truncation in `slice(11, 16)`** drops seconds and milliseconds. If a boundary falls on a non-zero second, it displays as the minute below. The end of one slot and the start of the next could then look like they overlap or leave a gap when they actually abut.
+- **The `.slice(11, 16)` and `UTC` label** assume the strings are UTC. The date is also requested using the UTC "today". Near midnight local time, the default date can differ from the user's calendar date.
+- **Any future client-side logic** would be risky. The comment at `:55-57` says the component never compares or merges ranges. If someone adds a check like "is 10:00 free?", "disable slots shorter than N minutes", or "merge adjacent slots", they must use `start <= t < end`. Using `<= end` would show 10:00 as bookable when it's the start of the next booking. Merging `[9,10)` and `[10,11)` into `[9,11)` is correct, but merging with `>` instead of `>=` would leave a false gap.
+
+Even though the frontend never touches the booking logic, it is the only place the user sees the result. A display that misreads the boundary would tell the user the wrong thing. For example, it could suggest a room is free until a minute it isn't, or hide a valid back-to-back slot.

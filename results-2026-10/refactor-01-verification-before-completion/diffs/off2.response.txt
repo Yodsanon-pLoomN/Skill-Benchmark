@@ -1,0 +1,11 @@
+I'm still verifying the refactor, but `npm test` was blocked by a permission prompt. I'll try once more with a single plain command.
+
+I merged the two overlap checks in `src/services/bookingService.ts` into one helper, and `npm test` passes 13 of 13. I didn't run `tsc` separately; its command was blocked by a permission prompt and I didn't retry it.
+
+- **New helper:** `overlapsAny(bookings, range)` returns true if any of the given bookings overlaps the range. It uses the existing `overlaps` from the domain module.
+- **`createBooking`:** the conflict check now calls `overlapsAny(sameDay, range)`.
+- **`checkAvailability`:** the fast-path check now calls `overlapsAny(bookings, dayWindow)`. I also removed the comment saying the logic was copied from `createBooking`, since that's no longer true.
+
+Behaviour is unchanged. `findBookingsForDay` still returns only `CONFIRMED` bookings, so cancelled ones never count as conflicts (rule 2 in `docs/DOMAIN.md`). The half-open interval comparison in `overlaps` is untouched, so back-to-back bookings still don't conflict.
+
+The helper stays private to the service file. Nothing outside it needs it right now, and I can move it to `domain/booking.ts` if you want it exported.

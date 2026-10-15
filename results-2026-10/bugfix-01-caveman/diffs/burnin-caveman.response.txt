@@ -1,0 +1,7 @@
+Fixed both bugs in code. I couldn't run the tests: the test command needed approval and I didn't retry it.
+
+**Report 1 (back-to-back bookings rejected).** `overlaps()` in `src/domain/booking.ts` used `<=` and `>=`, so ranges that only touch at 11:00 counted as overlapping. It now uses `<` and `>`, which matches the half-open rule in `docs/DOMAIN.md`.
+
+**Report 2 (cancelled booking still blocks the slot).** `findBookingsForDay()` in `src/repositories/bookingRepository.ts` didn't filter on status. Cancelled bookings were included in the conflict check and in availability. I added `status: "CONFIRMED"` to the query. The same function feeds availability, so cancelled bookings now stop appearing there too.
+
+Run `npx vitest run` to confirm.

@@ -1,0 +1,13 @@
+Using the Edit tool instead.
+
+I fixed both bugs, but I couldn't run the tests. `npm test` needs approval in this session and wasn't granted, so the fixes are unverified.
+
+**Report 1 (11:00 back-to-back is rejected).** The overlap check in `src/domain/booking.ts` used `<=` and `>=`, which treats ranges that only touch at a point as overlapping. `docs/DOMAIN.md` defines bookings as half-open intervals, so I changed it to strict `<` and `>`:
+
+```ts
+a.startsAt < b.endsAt && a.endsAt > b.startsAt
+```
+
+**Report 2 (cancelled booking still blocks the slot).** `findBookingsForDay` in `src/repositories/bookingRepository.ts` didn't filter by status. Its own comment says cancelled bookings are excluded, but the query never did that. Cancelled bookings were therefore counted in the conflict check and in the availability view. I added `status: "CONFIRMED"` to the query. This fixes both paths because they share that function.
+
+Please run `npm test` to confirm. I'd also add regression tests for 10:00–11:00 followed by 11:00–12:00, and for booking a slot that was just cancelled.

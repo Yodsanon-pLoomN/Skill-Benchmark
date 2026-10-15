@@ -1,0 +1,17 @@
+Writing the endpoint is done. I'm trying to build it to check that it compiles, but the build command needs your approval.
+
+I added `PATCH /bookings/{id}/extend` in `Controllers/BookingsController.cs`, but I haven't built or run it. My `dotnet build` attempts were blocked pending your approval, so it may not compile. Please run `dotnet build` yourself, or approve the command and I'll run it.
+
+**Responses by case:**
+- **Success:** the new `EndsAt` is saved and the updated booking is returned (200).
+- **Rule 1, booking not `CONFIRMED`:** 409.
+- **Rule 2, `newEndsAt` not after the current `EndsAt`:** 400.
+- **Rule 3, total duration from `StartsAt` over 8 hours:** 400.
+- **Rule 4, overlap with another `CONFIRMED` booking in the same room:** 409. It uses the half-open check `a.StartsAt < b.EndsAt && a.EndsAt > b.StartsAt`, so a booking ending exactly when another starts is allowed.
+- **Booking not found:** 404.
+- **`newEndsAt` missing from the body:** 400. You didn't specify this one; I added it.
+
+**Behaviours to know about:**
+- **Timestamps:** SQLite returns stored times without a timezone marker, so I treat them as UTC (the seed data is UTC). The incoming `newEndsAt` is converted to UTC before any comparison.
+- **Overlap check:** it runs in memory over that room's other `CONFIRMED` bookings, not as a database query.
+- **No tests:** I didn't write any for the new endpoint.

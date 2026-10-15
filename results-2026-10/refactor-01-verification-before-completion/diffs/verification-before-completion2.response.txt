@@ -1,0 +1,8 @@
+I refactored the duplicated overlap check into one helper, but I haven't verified it. Both test attempts (`npm test`, plus `tsc --noEmit`) were blocked by a permission prompt and never ran. Please run `npm test` and `npx tsc --noEmit` in `workspace/sample-project`.
+
+The change is in `src/services/bookingService.ts`:
+- **New helper:** `hasConflict(dayBookings, range)` returns `dayBookings.some((existing) => overlaps(existing, range))`.
+- **`createBooking`:** now calls `hasConflict(sameDay, range)` instead of its own `.some(...)` scan.
+- **`checkAvailability`:** the fast path now calls `!hasConflict(bookings, dayWindow)`. I also removed the "copied from createBooking" comment.
+
+The overlap logic itself is untouched and still comes from `overlaps` in the domain module. The refactor only moves the loop into the helper, so behaviour of both endpoints should be unchanged. I'm expecting the 13 existing tests to pass.

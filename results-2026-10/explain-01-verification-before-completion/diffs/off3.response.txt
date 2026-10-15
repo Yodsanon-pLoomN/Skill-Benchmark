@@ -1,0 +1,58 @@
+I couldn't read the backend repo (`sample-project`) because it's outside this session's permissions. Everything about the backend response below comes from the TypeScript interfaces and the comments in the frontend code. I haven't checked it against the server.
+
+## 1. Who does what
+
+**`RoomService`** (`room.service.ts`) is a thin HTTP wrapper. It has two methods:
+- `listRooms()` calls `GET {baseUrl}/rooms` and returns `Observable<Room[]>`.
+- `getAvailability(roomId, date)` calls `GET {baseUrl}/rooms/:roomId/availability?date=...` and returns `Observable<AvailabilityResponse>`.
+
+It holds no state and applies no booking rules. Its own comment says the Node API is the single source of truth and the service only passes results through. The base URL comes from `environment.bookingApiBaseUrl`.
+
+**`RoomAvailabilityComponent`** owns the UI state and the user interaction. That state is:
+- `rooms`
+- `selectedRoomId`
+- `date`
+- `freeIntervals`
+- `loading`
+- `errorMessage`
+
+It also turns each interval into a display string with `formatSlot`.
+
+They communicate in one direction. The component injects the service and subscribes to the returned Observables. The service never calls back into the component. Both sides share the types `Room`, `FreeInterval` and `AvailabilityResponse`, which are exported from the service file.
+
+## 2. Page load to slots on screen
+
+1. Angular creates the component and calls `ngOnInit`.
+2. `date` is set to today with `new Date().toISOString().slice(0, 10)`. That is today's date in **UTC**, not local time.
+3. `roomService.listRooms()` fires `GET /rooms`. The response is an array of `{id, name, capacity, isActive}`.
+4. In the `next` handler, the component stores `rooms`. If the list isn't empty, it sets `selectedRoomId` to the first room and calls `loadAvailability()`. On error it sets `errorMessage = 'Could not load rooms.'`.
+5. `loadAvailability()` returns early if there's no room or date. Otherwise it sets `loading = true`, clears the error, and calls `getAvailability(...)`. That fires `GET /rooms/<id>/availability?date=YYYY-MM-DD`.
+6. The backend responds with `{ roomId, date, free: [{ startsAt, endsAt }, ...] }`. `startsAt` and `endsAt` are strings, presumably ISO timestamps, and each pair is a free half-open range `[startsAt, endsAt)`. The server computes this list from the bookings and the business rules.
+7. On success the component assigns `freeIntervals = res.free` and sets `loading = false`. On failure it sets `'Could not load availability.'` and `loading = false`.
+8. The template reacts to that state:
+   - `<p *ngIf="loading">` shows "Loading…".
+   - The `<ul>` renders only when `!loading && !errorMessage`.
+   - Inside it, `*ngFor` makes one `<li>` per slot, showing `formatSlot(slot)`. That parses both strings with `new Date`, takes `toISOString().slice(11, 16)` (the `HH:mm` part), and returns `"HH:mm–HH:mm UTC"`.
+   - If the array is empty, an extra `<li>` shows "No free slots."
+9. After the first load, changing the room `<select>` or the date `<input>` fires `(ngModelChange)="loadAvailability()"` and repeats steps 5–8.
+
+## 3. Where the half-open `[start, end)` rule matters in the frontend
+
+The component's comment says it never compares or merges ranges. That is true today, so the exposure is small. The places to be careful are these:
+
+- **The `endsAt` label in `formatSlot`.** Because the interval is half-open, `endsAt` is the first instant that is not free, so `10:00–11:00` means free from 10:00 up to but not including 11:00. Displaying it as `10:00–11:00` is correct. Two bad "fixes" would introduce errors:
+  - Subtracting a minute (`10:59`), or adding one to `endsAt`, shifts the user's picture of the slot.
+  - Treating the end as inclusive could lead someone to believe 11:00 is bookable. It is the instant the next booking starts, and a booking at 11:00 doesn't conflict with the previous one.
+
+- **Any future code that compares or merges slots.** Adjacent free slots like `[09:00, 10:00)` and `[10:00, 11:00)` touch but don't overlap. Code that merges, sorts, checks whether a requested time fits, or disables a time picker has to use `start <= t < end`. Using `<=` on the end, or treating touching slots as overlapping, would show a slot as taken (or free) when it isn't. That is the same class of bug the backend rule exists to prevent, and it would appear here even though the server was right.
+
+- **Timezone handling in `date` and `formatSlot`.**
+  - `ngOnInit` uses a UTC date, so for a user in Thailand (UTC+7) early in the local morning it can be "yesterday".
+  - `formatSlot` labels everything UTC. If someone switches it to local time formatting, a slot ending exactly at local midnight would appear to end on the next day, and the `date` filter would no longer line up with the displayed range.
+  - Boundary instants are where half-open errors show up, so these two spots deserve care.
+
+- **Date parsing.** `new Date(interval.startsAt)` is fine for full ISO strings with an offset or `Z`. If the backend ever sent a bare local timestamp, the parse would shift the boundary by the client's offset.
+
+The safest rule for this component is the one already in its comment. Keep the range logic on the server, and treat `startsAt`/`endsAt` as opaque, display-only values.
+
+I didn't change any files.

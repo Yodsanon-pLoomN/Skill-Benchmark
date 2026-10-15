@@ -1,0 +1,12 @@
+The room-availability endpoint (`GET /rooms/:id/availability`) and the
+booking-creation endpoint (`POST /bookings`) both need to know whether a
+candidate time range overlaps any existing CONFIRMED booking that day.
+
+Right now that overlap-scanning logic is written twice in
+`src/services/bookingService.ts` — once inside `createBooking`, and again as
+a "fast path" check at the top of `checkAvailability`. They were written
+separately and have drifted into two independent copies of the same idea.
+
+Please refactor this into a single shared implementation, used by both
+places. The behaviour of both endpoints must not change — every case in
+docs/DOMAIN.md must still work exactly as before.
